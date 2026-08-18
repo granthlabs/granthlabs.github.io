@@ -826,6 +826,87 @@
   transition: border-color var(--g-fast), transform var(--g-slow);
 }
 .built__shot:hover { border-color: var(--g-accent-dim); transform: translateY(-3px); }
+
+/* Slider. Crossfade rather than a horizontal track: the frames are the same app
+   in different states, so sliding them past each other implies a spatial
+   relationship that is not there. Fading says "same thing, different moment".
+
+   Height comes from the first slide, which is in normal flow; the rest are
+   absolutely positioned over it. Otherwise the section would jump every time a
+   frame of a slightly different height came in. */
+.slides { position: relative; display: grid; }
+.slides__item {
+  grid-area: 1 / 1;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--g-slow) ease;
+}
+.slides__item.is-on { opacity: 1; visibility: visible; }
+.slides__item img { display: block; width: 100%; height: auto; }
+
+.slides__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-3);
+  padding: var(--g-space-3) var(--g-space-4);
+  border-top: 1px solid var(--g-line-soft);
+  background: var(--g-bg-sunk);
+}
+.slides__caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--g-space-2) var(--g-space-3);
+  font-size: var(--g-text-sm);
+}
+.slides__caption strong { color: var(--g-text); font-weight: 600; }
+.slides__caption code {
+  font: var(--g-text-xs)/1.6 var(--g-mono);
+  color: var(--g-accent);
+  background: var(--g-accent-soft);
+  padding: 1px var(--g-space-2);
+  border-radius: var(--g-radius);
+}
+.slides__meta { margin-left: auto; font: var(--g-text-xs)/1.6 var(--g-mono); color: var(--g-text-3); }
+
+/* 32px, not the 16px an arrow glyph wants to be: this is a pointer target and a
+   touch target, and 24 is the floor for one. */
+.slides__arrow {
+  flex: 0 0 auto;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  font-size: 20px; line-height: 1;
+  color: var(--g-text-2);
+  background: var(--g-bg-panel);
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius);
+  cursor: pointer;
+  transition: color var(--g-fast), border-color var(--g-fast);
+}
+.slides__arrow:hover { color: var(--g-text); border-color: var(--g-accent-dim); }
+
+.slides__dots { display: flex; justify-content: center; gap: var(--g-space-2); padding: 0 0 var(--g-space-3); background: var(--g-bg-sunk); }
+.slides__dots button {
+  width: 26px; height: 4px; padding: 0;
+  border: 0; border-radius: var(--g-radius-pill);
+  background: var(--g-line);
+  cursor: pointer;
+  transition: background var(--g-fast);
+}
+.slides__dots button:hover { background: var(--g-accent-dim); }
+.slides__dots button.is-on { background: var(--g-accent); }
+
+/* The whole strip is one control set; enlarging the hit area is not worth
+   animating a transform on a container that holds a 2x screenshot. */
+@media (prefers-reduced-motion: reduce) {
+  .slides__item { transition: none; }
+  .built__shot:hover { transform: none; }
+}
+
 .built__chrome {
   display: flex;
   align-items: center;
@@ -895,3 +976,24 @@
    theme colour because its silhouette is unmistakable without help. */
 .VPSocialLink[aria-label="granthdb on npm"] { color: #CB3837; }
 .VPSocialLink[aria-label="granthdb on npm"]:hover { color: #E8524F; }
+
+/* App tabs above the slider. Two apps is a choice, not a list, so they are tabs
+   rather than another row of dots — the dots below step through frames WITHIN
+   an app, and conflating the two controls would make neither legible. */
+.built__tabs { display: flex; gap: var(--g-space-2); margin: var(--g-space-5) 0 var(--g-space-3); flex-wrap: wrap; }
+.built__tabs button {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: var(--g-space-2) var(--g-space-4);
+  font: 600 var(--g-text-base)/1.2 var(--g-font);
+  color: var(--g-text-2);
+  background: var(--g-bg-soft);
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius-lg);
+  cursor: pointer;
+  transition: color var(--g-fast), border-color var(--g-fast), background var(--g-fast);
+}
+.built__tabs button span { font: 400 var(--g-text-xs)/1.4 var(--g-font); color: var(--g-text-3); }
+.built__tabs button:hover { color: var(--g-text); border-color: var(--g-accent-dim); }
+.built__tabs button.is-on { color: var(--g-accent); border-color: var(--g-accent-soft); background: var(--g-accent-soft); }
+.built__tabs button.is-on span { color: var(--g-accent); opacity: .8; }
+.built__blurb { margin: 0; font-size: var(--g-text-base); line-height: 1.6; color: var(--g-text-2); max-width: 62ch; }

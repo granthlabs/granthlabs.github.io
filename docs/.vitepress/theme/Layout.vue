@@ -90,55 +90,80 @@ const currentLines = computed(() => current.value.code.split('\n'));
 
 const isHighlighted = (n) => current.value.hl?.some(([a, b]) => n >= a && n <= b) ?? false;
 
+
 /**
- * Each step names a query the showcase app genuinely runs, with the call that
- * makes it — so the section is a tour of real behaviour rather than adjectives.
+ * Two apps, three frames each, all captured by scripts/capture-showcase.mjs
+ * driving their real controls against real databases. Nothing here is a mockup:
+ * if a control moves, the capture fails rather than shipping a picture of
+ * behaviour that no longer exists.
+ *
+ * They are two APPS rather than six views of one because the argument is that
+ * different shapes of application fit on this, and an issue tracker cannot make
+ * that argument by itself.
  */
-const showcaseSteps = [
+const showcaseApps = [
   {
-    title: 'Filter on one index, order by another',
-    body: '1,199 open issues, newest first, in a single pass. A cursor-based store has to pick one index and walk the rest by hand.',
-    code: "where('status').equals('open').orderBy('updated')",
+    name: 'Signals',
+    kind: 'Issue tracker',
+    href: '/play/showcase/',
+    blurb: '5,000 issues. Filter on one index while ordering by another, facet on an array field, page deep without the answer drifting.',
+    frames: [
+      { file: 'signals-all.png', label: 'All 5,000, newest first', code: "orderBy('updated').reverse()" },
+      { file: 'signals-filtered.png', label: 'One index filters, another orders', code: "where('status').equals('open').orderBy('updated')" },
+      { file: 'signals-faceted.png', label: 'Facet on an array field', code: "where('labels').equals('perf')" },
+    ],
+    alt: 'Signals: status facets with live counts beside a filterable table of issues.',
+    stats: [
+      { n: '5,000', label: 'issues in the table' },
+      { n: '310', label: 'lines of app code' },
+      { n: '6', label: 'indexes, one compound and one multiEntry' },
+      { n: '0', label: 'servers, build steps, framework deps' },
+    ],
+    steps: [
+      { title: 'Filter on one index, order by another', body: '1,199 open issues, newest first, in a single pass. A cursor-based store has to pick one index and walk the rest by hand.', code: "where('status').equals('open').orderBy('updated')" },
+      { title: 'Facets straight from the database', body: 'Counts per status and per label, recomputed on every write instead of tallied in memory.', code: "where('labels').equals('perf').count()" },
+      { title: 'Deep paging that stays put', body: 'Page 40 of 200 returns the rows it should. Ordering is pinned to the bound index, so the answer does not drift.', code: '.offset(975).limit(25).toArray()' },
+      { title: 'Cross-tab, with one writer', body: 'Open it twice and triage in either. One tab owns the database; the others route their queries to it and update.', code: 'db.onChange(() => render())' },
+    ],
   },
   {
-    title: 'Facets straight from the database',
-    body: 'Counts per status and per label, recomputed on every write instead of tallied in memory.',
-    code: "where('labels').equals('perf').count()",
-  },
-  {
-    title: 'Deep paging that stays put',
-    body: 'Page 40 of 200 returns the rows it should. Ordering is pinned to the bound index, so the answer does not drift.',
-    code: '.offset(975).limit(25).toArray()',
-  },
-  {
-    title: 'Cross-tab, with one writer',
-    body: 'Open it twice and triage in either. One tab owns the database; the others route their queries to it and update.',
-    code: 'db.onChange(() => render())',
-  },
-  {
-    title: 'Writes in one transaction',
-    body: 'Triage moves five issues and bumps their timestamps together. Either all of it lands or none of it does.',
-    code: "db.transaction('rw', db.issues, tx => …)",
-  },
-  {
-    title: 'Survives a reload, because it is on disk',
-    body: 'Close the tab and come back: the database is a real SQLite file in OPFS, not a heap of objects in memory.',
-    code: 'await db.open()  // 16 ms, 5,000 rows',
+    name: 'Ledger',
+    kind: 'Money',
+    href: '/play/ledger/',
+    blurb: '12,000 transactions over three years. Balances are summed from the rows, date ranges ride a compound index, and a transfer writes both sides in one transaction.',
+    frames: [
+      { file: 'ledger-all.png', label: 'Balances summed from the rows', code: 'entries.where(...).toArray()' },
+      { file: 'ledger-narrow.png', label: 'A date range on a compound index', code: "where('[account+date]').between(…)" },
+      { file: 'ledger-category.png', label: 'Narrowed again, totals follow', code: ".filter(e => e.category === 'food')" },
+    ],
+    alt: 'Ledger: account balances beside a filtered transaction table with in, out and net totals.',
+    stats: [
+      { n: '12,000', label: 'transactions over three years' },
+      { n: '2', label: 'rows per transfer, in one transaction' },
+      { n: '0', label: 'stored balances — all summed from rows' },
+      { n: 'pence', label: 'integers, never floats' },
+    ],
+    steps: [
+      { title: 'A transfer is two writes or none', body: 'Money leaving one account and arriving at another is a single transaction, so there is no state where one happened without the other.', code: "db.transaction('rw', db.entries, tx => …)" },
+      { title: 'Balances are derived, never stored', body: 'Each balance is summed from its rows after every write. A total kept beside the rows is a total that eventually disagrees with them.', code: "where('account').equals('current')" },
+      { title: 'One account, one date range', body: 'The shape a single-index cursor store handles worst: a compound index turns it into one seek instead of a scan filtered afterwards.', code: "where('[account+date]').between(…)" },
+      { title: 'Money is integer pence', body: 'Never floating point. 0.1 + 0.2 is not 0.3 in binary, and a ledger that is a penny out is a broken ledger.', code: 'amount: -3550   // £35.50' },
+    ],
   },
 ];
 
-/**
- * Counted from the app's own source, not estimated — `wc -l` over
- * examples/playground/showcase and the index list in its schema. The point of
- * the section is that the whole thing is small; a number nobody checked would
- * undercut exactly that.
- */
-const showcaseStats = [
-  { n: '5,000', label: 'issues in the table' },
-  { n: '310', label: 'lines of app code' },
-  { n: '6', label: 'indexes, incl. one compound and one multiEntry' },
-  { n: '0', label: 'servers, build steps and framework deps' },
-];
+/** Flattened, because the slider steps through frames but labels them by app. */
+const showcaseSlides = showcaseApps.flatMap((app) =>
+  app.frames.map((f) => ({ ...f, app: app.name, kind: app.kind, href: app.href, blurb: app.blurb, alt: app.alt }))
+);
+
+const slide = ref(0);
+const slideTo = (i) => { slide.value = (i + showcaseSlides.length) % showcaseSlides.length; };
+/** Jump to an app's first frame, so the tabs above the slider actually switch app. */
+const appStart = (name) => showcaseSlides.findIndex((s) => s.app === name);
+const currentApp = computed(() => showcaseSlides[slide.value].app);
+const activeApp = computed(() => showcaseApps.find((a) => a.name === currentApp.value) ?? showcaseApps[0]);
+
 
 const benefits = [
   {
@@ -347,12 +372,26 @@ async function copy() {
         <div class="built__inner">
           <header class="built__head">
             <p class="built__eyebrow">Built on granthdb</p>
-            <h2 class="built__title">Signals</h2>
+            <h2 class="built__title">Two apps, no backend</h2>
             <p class="built__lead">
-              A complete issue tracker — 5,000 rows, faceted search, deep paging and cross-tab
-              updates — with <strong>no backend, no sync service and no build step</strong>.
-              Everything below runs in the browser tab you open it in.
+              Both run entirely in the tab you open them in — <strong>no server, no sync
+              service and no build step</strong> — and both are in the repository, so every
+              claim below is something you can read the source of.
             </p>
+            <div class="built__tabs" role="tablist" aria-label="Example apps">
+              <button
+                v-for="a in showcaseApps"
+                :key="a.name"
+                type="button"
+                role="tab"
+                :aria-selected="currentApp === a.name"
+                :class="{ 'is-on': currentApp === a.name }"
+                @click="slideTo(appStart(a.name))"
+              >
+                {{ a.name }}<span>{{ a.kind }}</span>
+              </button>
+            </div>
+            <p class="built__blurb">{{ activeApp.blurb }}</p>
           </header>
 
           <div class="built__grid">
@@ -360,19 +399,61 @@ async function copy() {
                  item, so the stats took the steps' column and shoved the steps
                  onto a row of their own. -->
             <div class="built__left">
-              <a class="built__shot" target="_self" :href="withBase('/play/showcase/')" aria-label="Open the Signals app">
+              <!-- One screenshot showed the app existing. Four show it DOING the
+                   things the list beside it claims, each labelled with the query
+                   that produced the frame and the timing that run measured.
+
+                   Not auto-advancing: a carousel that moves on its own takes the
+                   reading speed out of the reader's hands and is a known
+                   accessibility problem. It moves when you ask it to. -->
+              <div class="built__shot">
                 <span class="built__chrome" aria-hidden="true">
                   <i /><i /><i />
-                  <em>granthlabs.github.io/play/showcase</em>
+                  <em>granthlabs.github.io{{ activeApp.href }}</em>
                 </span>
-                <img :src="withBase('/showcase.png')" alt="Signals: status facets with live counts beside a filterable table of issues, showing query timings" loading="lazy" />
-              </a>
+
+                <div class="slides" role="group" aria-roledescription="carousel" aria-label="Signals, four views">
+                  <a
+                    v-for="(s, i) in showcaseSlides"
+                    :key="s.file"
+                    class="slides__item"
+                    :class="{ 'is-on': i === slide }"
+                    :aria-hidden="i !== slide"
+                    :tabindex="i === slide ? 0 : -1"
+                    target="_self"
+                    :href="withBase(s.href)"
+                  >
+                    <img :src="withBase(`/showcase/${s.file}`)" :alt="s.alt" :loading="i === 0 ? 'eager' : 'lazy'" />
+                  </a>
+                </div>
+
+                <div class="slides__bar">
+                  <button class="slides__arrow" type="button" aria-label="Previous view" @click="slideTo(appStart(currentApp) + (slide - appStart(currentApp) + activeApp.frames.length - 1) % activeApp.frames.length)">‹</button>
+                  <p class="slides__caption">
+                    <strong>{{ showcaseSlides[slide].label }}</strong>
+                    <code>{{ showcaseSlides[slide].code }}</code>
+                  </p>
+                  <button class="slides__arrow" type="button" aria-label="Next view" @click="slideTo(appStart(currentApp) + (slide - appStart(currentApp) + 1) % activeApp.frames.length)">›</button>
+                </div>
+
+                <div class="slides__dots">
+                  <button
+                    v-for="(f, i) in activeApp.frames"
+                    :key="f.file"
+                    type="button"
+                    :class="{ 'is-on': appStart(currentApp) + i === slide }"
+                    :aria-current="appStart(currentApp) + i === slide"
+                    :aria-label="f.label"
+                    @click="slideTo(appStart(currentApp) + i)"
+                  />
+                </div>
+              </div>
 
               <!-- Under the shot, not in a band of its own: the steps column runs
                    much taller than the image, and this fills a gap that otherwise
                    read as the section having stopped early. -->
               <dl class="built__stats">
-                <div v-for="s in showcaseStats" :key="s.label">
+                <div v-for="s in activeApp.stats" :key="s.label">
                   <dt>{{ s.n }}</dt>
                   <dd>{{ s.label }}</dd>
                 </div>
@@ -380,7 +461,7 @@ async function copy() {
             </div>
 
             <ol class="built__steps">
-              <li v-for="(s, i) in showcaseSteps" :key="s.title">
+              <li v-for="(s, i) in activeApp.steps" :key="s.title">
                 <span class="built__n" aria-hidden="true">{{ i + 1 }}</span>
                 <div>
                   <h3>{{ s.title }}</h3>
@@ -392,8 +473,8 @@ async function copy() {
           </div>
 
           <div class="built__actions">
-            <a class="ghero__cta" target="_self" :href="withBase('/play/showcase/')">Open the app</a>
-            <a class="ghero__secondary" href="https://github.com/granthlabs/granth/tree/main/examples/playground/showcase">
+            <a class="ghero__cta" target="_self" :href="withBase(activeApp.href)">Open {{ activeApp.name }}</a>
+            <a class="ghero__secondary" :href="`https://github.com/granthlabs/granth/tree/main/examples/playground/${activeApp.name === 'Ledger' ? 'ledger' : 'showcase'}`">
               Read its source
             </a>
           </div>

@@ -35,6 +35,7 @@ jobs:
       - run: node examples/playground/spa-exit-test.mjs
       - run: node examples/playground/hosted-play-test.mjs
       - run: node examples/playground/showcase-test.mjs
+      - run: node examples/playground/ledger-test.mjs
       - run: node examples/playground/flash-probe.mjs
 
       - uses: actions/configure-pages@v5
