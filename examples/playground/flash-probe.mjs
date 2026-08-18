@@ -70,19 +70,36 @@ async function probe(label, path) {
     const html = getComputedStyle(document.documentElement);
     const body = getComputedStyle(document.body);
     const painted = (c) => c && c !== 'transparent' && !/rgba\(0,\s*0,\s*0,\s*0\)/.test(c);
+    // Same question asked of the icon: an inline <svg> carrying only a viewBox
+    // has NO intrinsic size, so with no stylesheet it lays out at the default
+    // replaced-element box and stretches to its container — measured at 1264px,
+    // a full-viewport database icon flashing on every navigation before ui.css
+    // shrank it to 18. width/height attributes give it a size CSS is not needed
+    // for. Belongs here because it is the same defect as the white canvas: what
+    // the document is worth on its own, before anything decorates it.
+    const svg = document.querySelector('.topbar__brand svg');
+    const iconW = svg ? Math.round(svg.getBoundingClientRect().width) : null;
     return {
       scheme: html.colorScheme,
       htmlBg: html.backgroundColor,
       bodyBg: body.backgroundColor,
       dark: html.colorScheme.includes('dark') || painted(html.backgroundColor) || painted(body.backgroundColor),
+      iconW,
     };
   }).catch(() => null);
   await page.close();
 
   if (!state) { failures++; console.log(`FAIL  ${label} — could not read the document`); return; }
   if (!state.dark) failures++;
+  // 40px: comfortably above any legitimate brand mark, far below the 1264 the
+  // unsized element produced. A threshold, not an exact size, so restyling the
+  // icon does not make this fail for the wrong reason.
+  const iconBad = state.iconW != null && state.iconW > 40;
+  if (iconBad) failures++;
   console.log(
-    `${state.dark ? 'PASS' : 'FAIL'}  ${label} — color-scheme: ${state.scheme}, html bg ${state.htmlBg}`
+    `${state.dark && !iconBad ? 'PASS' : 'FAIL'}  ${label} — color-scheme: ${state.scheme}, ` +
+      `html bg ${state.htmlBg}${state.iconW == null ? '' : `, brand icon ${state.iconW}px`}` +
+      `${iconBad ? '  <-- ICON FLASHES OVERSIZED' : ''}`
   );
 }
 
@@ -96,7 +113,7 @@ await browser.close();
 server.close();
 console.log(
   failures
-    ? `\n${failures} page(s) paint a LIGHT canvas before CSS loads — that is the flash`
-    : `\nevery page paints dark before CSS loads`
+    ? `\n${failures} problem(s) in the pre-CSS frame — a light canvas, an oversized icon, or both`
+    : `\nevery page paints dark, with a correctly sized icon, before CSS loads`
 );
 process.exit(failures ? 1 : 0);

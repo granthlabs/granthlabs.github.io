@@ -223,10 +223,18 @@ async function copy() {
             </p>
 
             <div class="ghero__actions">
+              <!-- A pointing hand, not the plus-in-a-circle that was here: a ⊕
+                   is the universal "add one more" glyph, so on the primary
+                   action of a landing page it said "create something" when the
+                   button means "begin here". -->
               <a class="ghero__cta" :href="withBase('/tutorial')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 14a8 8 0 0 1-8 8" />
+                  <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+                  <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
+                  <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
+                  <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
                 </svg>
                 Get started
               </a>
@@ -347,7 +355,7 @@ async function copy() {
 
           <div class="built__actions">
             <a class="ghero__cta" target="_self" :href="withBase('/play/showcase/')">Open the app</a>
-            <a class="ghero__secondary" href="https://github.com/granthlabs/granthlabs.github.io/tree/main/examples/playground/showcase">
+            <a class="ghero__secondary" href="https://github.com/granthlabs/granth/tree/main/examples/playground/showcase">
               Read its source
             </a>
           </div>

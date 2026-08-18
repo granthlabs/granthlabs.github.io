@@ -13,7 +13,7 @@ hero:
       link: /migrating-from-dexie
     - theme: alt
       text: GitHub
-      link: https://github.com/granthlabs/granthlabs.github.io
+      link: https://github.com/granthlabs/granth
 ---
 
 <div class="home-body">
@@ -53,7 +53,7 @@ API is the same, and what changed is underneath it.
 | Multi-tab writes | last writer wins | one elected writer |
 
 Numbers are measured on one machine and vary; run
-[`bench.html`](https://github.com/granthlabs/granthlabs.github.io/blob/main/examples/playground/bench.html)
+[`bench.html`](https://github.com/granthlabs/granth/blob/main/examples/playground/bench.html)
 on yours.
 
 ## Honest limits

@@ -93,16 +93,29 @@ export default defineConfig({
   themeConfig: {
     logo: '/logo.svg',
     siteTitle: 'granthdb',
+    // Nine top-level items plus a "GitHub" entry duplicating the social icon
+    // overflowed into the "..." menu, and what got pushed in there was the
+    // social row — so the npm link existed and no visitor could see it. The
+    // three /play/ destinations are one idea, so they became one menu, and the
+    // GitHub text item went: the icon beside it already says GitHub.
     nav: [
       { text: 'Guide', link: '/getting-started' },
       { text: 'Docs', link: '/docs' },
       { text: 'API', link: '/granth' },
       { text: 'Use cases', link: '/replacing-web-storage' },
       { text: 'Migrate', link: '/migrating-from-dexie' },
-      { text: 'Sandbox', link: '/play/sandbox', target: '_self' },
-      { text: 'Examples', link: '/play/demos/', target: '_self' },
-      { text: 'Verify', link: '/play/', target: '_self' },
-      { text: 'GitHub', link: 'https://github.com/granthlabs/granthlabs.github.io' },
+      {
+        text: 'Playground',
+        items: [
+          // target _self on every one: these are real documents outside the
+          // VitePress router, and letting it handle the click serves its own
+          // 404 without ever requesting the file.
+          { text: 'Sandbox', link: '/play/sandbox', target: '_self' },
+          { text: 'Examples', link: '/play/demos/', target: '_self' },
+          { text: 'Showcase', link: '/play/showcase/', target: '_self' },
+          { text: 'Verify', link: '/play/', target: '_self' },
+        ],
+      },
     ],
     sidebar: [
       {
@@ -146,8 +159,23 @@ export default defineConfig({
         ],
       },
     ],
-    socialLinks: [{ icon: 'github', link: 'https://github.com/granthlabs/granthlabs.github.io' }],
+    // GitHub points at the LIBRARY, not at this repo: someone clicking it from a
+    // library's own docs wants the source, not the site that documents it. npm
+    // sits beside it because "where do I install this from" is the other thing a
+    // header gets asked, and the site had no answer to it anywhere.
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/granthlabs/granth' },
+      {
+        icon: {
+          svg: '<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>npm</title><path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/></svg>',
+        },
+        link: 'https://www.npmjs.com/package/granthdb',
+        ariaLabel: 'granthdb on npm',
+      },
+    ],
     search: { provider: 'local' },
+    // Stays on THIS repo, deliberately: the markdown lives here, so "edit this
+    // page" has to open the file the reader is actually looking at.
     editLink: {
       pattern: 'https://github.com/granthlabs/granthlabs.github.io/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
