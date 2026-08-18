@@ -11,12 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
+        with: { node-version: '22', cache: npm }
       # No workspace build: this repo installs granthdb from npm on purpose, so
       # the hosted sandbox, demos and showcase exercise the PUBLISHED library —
       # exactly what a visitor downloads.
-      - run: npm install
-      - run: npm install --prefix examples/playground
+      # `npm ci` against a COMMITTED lockfile. Two independent `npm install`s
+      # sharing a hoisted tree is how CI got vitepress's vite@8 under a plugin
+      # that requires vite@5 — a resolution that could not happen locally, and a
+      # lockfile-free install is free to differ from run to run anyway.
+      - run: npm ci
       - run: npm run docs:build
 
       # A handful of page sources necessarily exist in both repos. Nothing
