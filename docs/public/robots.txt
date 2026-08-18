@@ -1,0 +1,14 @@
+# granthdb — https://granthlabs.github.io
+# Everything here is public documentation. Crawl it.
+User-agent: *
+Allow: /
+
+# The playground pages run a real database in the visitor's browser; they are
+# demos rather than documents, and carry noindex in their own markup.
+
+Sitemap: https://granthlabs.github.io/sitemap.xml
+
+# For language models: a plain-markdown map of this site, and the whole thing
+# inlined, so neither needs to be reconstructed out of rendered HTML.
+# https://granthlabs.github.io/llms.txt
+# https://granthlabs.github.io/llms-full.txt

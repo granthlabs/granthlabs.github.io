@@ -78,6 +78,8 @@ export default defineConfig({
   // it from the root and there is no path prefix to get wrong. Kept as a flag so
   // a future custom domain or a move back under a path is one variable.
   base: process.env.DOCS_BASE ?? '/',
+  // Needed for the generated sitemap to carry absolute URLs.
+  sitemap: { hostname: 'https://granthlabs.github.io/' },
   head: [
     // FIRST, before any stylesheet. `appearance: force-dark` is applied by
     // VitePress's own CSS, which is an external file — so until it arrived the
@@ -89,6 +91,32 @@ export default defineConfig({
     ['meta', { name: 'theme-color', content: '#3b5b7a' }],
     ['meta', { property: 'og:title', content: 'granth — SQLite in the browser' }],
     ['meta', { property: 'og:description', content: 'A Dexie-compatible API over SQLite/WASM on OPFS. Real indexes, a real query planner, off the main thread.' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:url', content: 'https://granthlabs.github.io/' }],
+    ['meta', { property: 'og:image', content: 'https://granthlabs.github.io/showcase.png' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'granthdb — SQLite in the browser' }],
+    ['meta', { name: 'twitter:description', content: 'A Dexie-compatible API over SQLite/WASM on OPFS. Real indexes, a real query planner, off the main thread.' }],
+    ['meta', { name: 'twitter:image', content: 'https://granthlabs.github.io/showcase.png' }],
+    // Structured data. Stated in the vocabulary a crawler already parses, so the
+    // facts it extracts are the ones we assert rather than ones it infers from
+    // prose — including the honest one, that this is storage and not a sync engine.
+    ['script', { type: 'application/ld+json' }, JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareSourceCode',
+      name: 'granthdb',
+      description:
+        'SQLite in the browser with a Dexie-compatible API. OPFS-backed with an IndexedDB fallback, ' +
+        'runs in a Web Worker, single-writer across tabs. A local storage engine, not a sync engine.',
+      url: 'https://granthlabs.github.io/',
+      codeRepository: 'https://github.com/granthlabs/granth',
+      programmingLanguage: 'TypeScript',
+      runtimePlatform: 'Web browser',
+      license: 'https://opensource.org/licenses/MIT',
+      keywords: 'sqlite, wasm, opfs, indexeddb, dexie, local-first, offline-first, browser database',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      installUrl: 'https://www.npmjs.com/package/granthdb',
+    })],
   ],
   themeConfig: {
     logo: '/logo.svg',

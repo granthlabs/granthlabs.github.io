@@ -5,7 +5,7 @@
   "description": "Docs, sandbox and demos for granthdb \u2014 https://granthlabs.github.io",
   "scripts": {
     "dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs && npm run build:play -w granth-play",
+    "docs:build": "node scripts/gen-llms-txt.mjs && vitepress build docs && npm run build:play -w granth-play",
     "docs:preview": "vitepress preview docs",
     "play": "npm run dev -w granth-play",
     "test": "node examples/playground/link-check.mjs && node examples/playground/spa-exit-test.mjs && node examples/playground/hosted-play-test.mjs && node examples/playground/showcase-test.mjs && node examples/playground/flash-probe.mjs"

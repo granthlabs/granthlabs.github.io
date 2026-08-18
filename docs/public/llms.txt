@@ -1,0 +1,51 @@
+# granthdb
+
+> SQLite in the browser with a Dexie-compatible API. Data is stored on the user's
+> own device in OPFS (with an IndexedDB fallback), queries run in a Web Worker off
+> the main thread, and one tab owns the database so multiple tabs cannot corrupt
+> it. Install with `npm install granthdb @sqlite.org/sqlite-wasm`, or load it from
+> a CDN with no build step.
+
+granthdb is a local storage engine, not a sync engine: it keeps no server copy and
+resolves no conflicts between users. Browser storage is evictable, so it is a fast
+local copy and never the only copy.
+
+- Source: https://github.com/granthlabs/granth
+- Package: https://www.npmjs.com/package/granthdb
+- Requires: Chrome 108+, Safari 16.4+, Firefox 111+, over HTTPS or localhost
+
+
+## Start here
+
+- [Getting started with granthdb](https://granthlabs.github.io/getting-started): Pick what you're building on and we'll take you straight to the setup for it.
+- [Tutorial](https://granthlabs.github.io/tutorial): granthdb pulls in the engine, both runtimes and all three storage backends. Import only what you use — every package is separately published and tree-shakeable.
+- [granthdb documentation](https://granthlabs.github.io/docs): granthdb is SQLite compiled to WebAssembly, running inside the browser tab, behind a Dexie-compatible API. Real indexes, a real query planner and real transactions — off the main thread, saf
+
+## Guides
+
+- [Frameworks & bundlers](https://granthlabs.github.io/frameworks): granth is plain ESM with no framework coupling. The core works anywhere; only React and Vue get a (tiny, optional) binding, because they have no store contract.
+- [TanStack Query, RxJS, Zustand and friends](https://granthlabs.github.io/state-libraries): The goal is that granthdb needs no adapter. A live query is already an observable, already a Svelte store, and already exposes .unsubscribe(). Three whole ecosystems work with no glue at all
+- [Migrating from Dexie or IndexedDB](https://granthlabs.github.io/migrating-from-dexie): Two jobs: your code and your data.
+
+## Use cases
+
+- [Replacing localStorage, sessionStorage and IndexedDB](https://granthlabs.github.io/replacing-web-storage): Most apps reach for localStorage because it is two lines, then keep using it long after it stopped fitting. This page is about when that has happened, and what to move to.
+- [Cache-first apps: the Notion pattern](https://granthlabs.github.io/cache-first-apps): The clearest public case for a browser-side SQL database is Notion's, described on their engineering blog. It is worth understanding because it includes the part most write-ups leave out: th
+- [Encrypting data at rest](https://granthlabs.github.io/encryption): Browser storage is not encrypted. OPFS, IndexedDB and localStorage all sit on disk in plaintext, readable by anyone with access to the device profile. If you cache someone's notes, messages,
+
+## Architecture
+
+- [Storage](https://granthlabs.github.io/storage): Storage is an ordered list of plugins, not a mode string. The first available one wins, and an open() failure falls through to the next — availability is a prediction, opening is the proof.
+- [Runtimes](https://granthlabs.github.io/runtimes): A runtime decides where the SQL executes. Two ship; you can write your own.
+- [Plugins](https://granthlabs.github.io/plugins): Everything swappable is a plugin. granth-protocol holds the contracts — types only, zero runtime, zero dependencies — so backends and bindings never import each other or the client.
+- [Security & performance](https://granthlabs.github.io/security-and-performance): Claims here are either measured or mechanical. Where something is a limitation rather than a feature, it says so.
+
+## API reference
+
+- [Granth](https://granthlabs.github.io/granth): The database: schema and versions, opening and closing, transactions, plugins.
+- [Table](https://granthlabs.github.io/table): One table. Reach it as db.friends or db.table('friends').
+- [Collection](https://granthlabs.github.io/collection): A query that has not run yet — build it up, then execute it with toArray(), count() and friends.
+- [WhereClause](https://granthlabs.github.io/where-clause): Returned by table.where(index). Mirrors Dexie's WhereClause — 18/18 members covered.
+- [Transaction](https://granthlabs.github.io/transaction): Two forms. Both are atomic; they differ in whether the callback can read.
+- [liveQuery](https://granthlabs.github.io/live-query): Reactive queries that re-run when the data changes — including changes made in other tabs — and emit only when the result actually differs.
+- [Errors](https://granthlabs.github.io/errors): The database file is at a newer version than the code declares — usually another tab running a newer build. Reload.
