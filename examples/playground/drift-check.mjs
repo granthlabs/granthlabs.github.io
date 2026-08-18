@@ -26,6 +26,7 @@ const SHARED = [
   'sandbox.js',
   'sandbox.worker.js',
   'ui.css',
+  'tokens.css',
   'demos/todo-db.js',
   'demos/todo.worker.js',
   'demos/style.css',

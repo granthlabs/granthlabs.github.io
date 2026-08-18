@@ -14,7 +14,7 @@
  * evenly in L looks evenly stepped.
  */
 
-@import './tokens.css';
+@import '../../../examples/playground/tokens.css';
 
 /**
  * Cross-document view transitions — the same opt-in the /play/ pages carry, so a
