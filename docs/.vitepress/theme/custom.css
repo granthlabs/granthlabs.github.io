@@ -885,3 +885,13 @@
   .built__title { font-size: var(--g-text-2xl); }
   .built__lead { font-size: var(--g-text-base); }
 }
+
+/* The npm mark in npm's red.
+
+   The shape alone is the official mark, but VitePress renders social icons
+   monochrome, and at 20px a grey rounded square with a notch out of it reads as
+   "some icon" rather than as npm. Colour is doing the identifying here, the same
+   job it does for the framework logos on /getting-started. GitHub keeps the
+   theme colour because its silhouette is unmistakable without help. */
+.VPSocialLink[aria-label="granthdb on npm"] { color: #CB3837; }
+.VPSocialLink[aria-label="granthdb on npm"]:hover { color: #E8524F; }
