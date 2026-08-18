@@ -1,10 +1,7 @@
-name: Docs
+name: Site
 on:
-  # examples/playground and the packages are BUILT INTO the site (the sandbox and
-  # demos live under /play/), so a change to either must redeploy it too.
-  push:
-    branches: [main]
-    paths: ['docs/**', 'examples/playground/**', 'packages/**', '.github/workflows/docs.yml']
+  push: { branches: [main] }
+  pull_request:
   workflow_dispatch:
 permissions: { contents: read, pages: write, id-token: write }
 concurrency: { group: pages, cancel-in-progress: false }
@@ -14,35 +11,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: npm }
-      - run: npm ci
-      # The sandbox and demos import the workspace packages from their dist/,
-      # which a fresh `npm ci` does not produce — without this the site builds
-      # with no /play/ at all, or fails resolving `granthdb`.
-      - run: npm run build
+        with: { node-version: '22' }
+      # No workspace build: this repo installs granthdb from npm on purpose, so
+      # the hosted sandbox, demos and showcase exercise the PUBLISHED library —
+      # exactly what a visitor downloads.
+      - run: npm install
+      - run: npm install --prefix examples/playground
       - run: npm run docs:build
-      # link-check is pure Node and takes seconds, so the deploy still refuses to
-      # ship broken links or a dead redirect.
-      #
-      # The BROWSER checks (hosted-play-test, flash-probe) deliberately do NOT run
-      # here. CI runs them on this same commit, and `playwright install
-      # --with-deps` turned a two-minute deploy into an eighteen-minute one that
-      # then hung — paying twice for the same evidence, on the job whose whole
-      # value is being fast and dependable.
-      - run: node examples/playground/link-check.mjs
-      # Cheap (no browser install beyond what link-check needs) and it guards the
-      # landing page's primary call to action, which 404'd for every human while
-      # every fetch-based check said 200.
+
+      # A handful of page sources necessarily exist in both repos. Nothing
+      # watches duplication by default, so this does — it fails if the site and
+      # granthlabs/granth disagree about a shared file.
+      - run: node examples/playground/drift-check.mjs
+
       - run: npx playwright install --with-deps chromium
+      - run: node examples/playground/link-check.mjs
+      # Fetching a URL and clicking a link are different acts: /play/ is not a
+      # VitePress route, so a click used to get the SPA's 404 while every fetch
+      # said 200.
       - run: node examples/playground/spa-exit-test.mjs
-      # enablement:true lets the action turn Pages on itself; without it the run
-      # fails with "Get Pages site failed" until someone flips the setting by hand.
+      - run: node examples/playground/hosted-play-test.mjs
+      - run: node examples/playground/showcase-test.mjs
+      - run: node examples/playground/flash-probe.mjs
+
       - uses: actions/configure-pages@v5
         with: { enablement: true }
       - uses: actions/upload-pages-artifact@v3
         with: { path: docs/.vitepress/dist }
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: { name: github-pages, url: '${{ steps.deployment.outputs.page_url }}' }
     steps:
