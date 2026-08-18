@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "The hosted sandbox, framework demos and showcase \u2014 built against the PUBLISHED granthdb.",
+  "description": "The hosted sandbox, framework demos and showcase — built against the PUBLISHED granthdb.",
   "scripts": {
     "dev": "vite --port 5178",
     "build:play": "vite build"
@@ -26,14 +26,14 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@sveltejs/vite-plugin-svelte": "^4",
     "@tanstack/query-core": "^5.101.4",
-    "@vitejs/plugin-react": "^4.3.4",
-    "@vitejs/plugin-vue": "^5.2.1",
+    "@vitejs/plugin-react": "^4",
+    "@vitejs/plugin-vue": "^5",
     "rxjs": "^7.8.2",
     "solid-js": "^1.9.14",
-    "svelte": "^4.2.20",
-    "vite": "^5.4.0",
+    "svelte": "^5.56.9",
+    "vite": "^5",
     "vite-plugin-solid": "^2.11.14",
     "zustand": "^5.0.15"
   }
