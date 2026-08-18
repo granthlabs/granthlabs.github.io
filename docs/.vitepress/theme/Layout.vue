@@ -115,6 +115,29 @@ const showcaseSteps = [
     body: 'Open it twice and triage in either. One tab owns the database; the others route their queries to it and update.',
     code: 'db.onChange(() => render())',
   },
+  {
+    title: 'Writes in one transaction',
+    body: 'Triage moves five issues and bumps their timestamps together. Either all of it lands or none of it does.',
+    code: "db.transaction('rw', db.issues, tx => …)",
+  },
+  {
+    title: 'Survives a reload, because it is on disk',
+    body: 'Close the tab and come back: the database is a real SQLite file in OPFS, not a heap of objects in memory.',
+    code: 'await db.open()  // 16 ms, 5,000 rows',
+  },
+];
+
+/**
+ * Counted from the app's own source, not estimated — `wc -l` over
+ * examples/playground/showcase and the index list in its schema. The point of
+ * the section is that the whole thing is small; a number nobody checked would
+ * undercut exactly that.
+ */
+const showcaseStats = [
+  { n: '5,000', label: 'issues in the table' },
+  { n: '310', label: 'lines of app code' },
+  { n: '6', label: 'indexes, incl. one compound and one multiEntry' },
+  { n: '0', label: 'servers, build steps and framework deps' },
 ];
 
 const benefits = [
@@ -333,13 +356,28 @@ async function copy() {
           </header>
 
           <div class="built__grid">
-            <a class="built__shot" target="_self" :href="withBase('/play/showcase/')" aria-label="Open the Signals app">
-              <span class="built__chrome" aria-hidden="true">
-                <i /><i /><i />
-                <em>granthlabs.github.io/play/showcase</em>
-              </span>
-              <img :src="withBase('/showcase.png')" alt="Signals: status facets with live counts beside a filterable table of issues, showing query timings" loading="lazy" />
-            </a>
+            <!-- Shot and stats are ONE grid child. As siblings they became a third
+                 item, so the stats took the steps' column and shoved the steps
+                 onto a row of their own. -->
+            <div class="built__left">
+              <a class="built__shot" target="_self" :href="withBase('/play/showcase/')" aria-label="Open the Signals app">
+                <span class="built__chrome" aria-hidden="true">
+                  <i /><i /><i />
+                  <em>granthlabs.github.io/play/showcase</em>
+                </span>
+                <img :src="withBase('/showcase.png')" alt="Signals: status facets with live counts beside a filterable table of issues, showing query timings" loading="lazy" />
+              </a>
+
+              <!-- Under the shot, not in a band of its own: the steps column runs
+                   much taller than the image, and this fills a gap that otherwise
+                   read as the section having stopped early. -->
+              <dl class="built__stats">
+                <div v-for="s in showcaseStats" :key="s.label">
+                  <dt>{{ s.n }}</dt>
+                  <dd>{{ s.label }}</dd>
+                </div>
+              </dl>
+            </div>
 
             <ol class="built__steps">
               <li v-for="(s, i) in showcaseSteps" :key="s.title">
