@@ -117,6 +117,43 @@ for (const [from, to] of Object.entries(MOVED)) {
   redirects++;
 }
 
+/**
+ * The top nav has to say where you are.
+ *
+ * VitePress highlights a nav item on EXACT URL match unless the item carries an
+ * `activeMatch` regex — so "Use cases" went dark the moment you followed a link
+ * to one of the pages underneath it, and the header stopped answering "where am
+ * I". That regex is a string in a config file: nothing type-checks it, and
+ * renaming a page silently drops that page out of its own section.
+ *
+ * `off` is the half that makes this able to fail. A regex of `.*` would light
+ * the item everywhere and pass a members-only check, so an unrelated page has to
+ * come back dark.
+ */
+const NAV_ACTIVE = [
+  { label: 'Use cases', href: `${BASE}use-cases`,
+    on: ['use-cases', 'replacing-web-storage', 'cache-first-apps', 'encryption'],
+    off: ['tutorial', 'storage'] },
+];
+let navChecked = 0;
+for (const { label, href, on, off } of NAV_ACTIVE) {
+  for (const [page, want] of [...on.map((p) => [p, true]), ...off.map((p) => [p, false])]) {
+    const file = join(DIST, `${page}.html`);
+    if (!existsSync(file)) { broken.push({ path: `${BASE}${page}`, why: 'nav check: page missing' }); continue; }
+    const html = readFileSync(file, 'utf8');
+    // The anchor's own tag, not the surrounding markup: `active` appears in
+    // plenty of unrelated classes on the page.
+    const tag = html.match(new RegExp(`<a[^>]*href="${href}"[^>]*>(?=\\s*<!--\\[-->\\s*<span[^>]*>${label}<)`))?.[0];
+    if (!tag) { broken.push({ path: `${BASE}${page}`, why: `nav check: no "${label}" nav link` }); continue; }
+    const isActive = /\bactive\b/.test(tag);
+    if (isActive !== want) {
+      broken.push({ path: `${BASE}${page}`, why: `nav "${label}" is ${isActive ? 'active' : 'not active'}, expected ${want ? 'active' : 'not active'}` });
+      continue;
+    }
+    navChecked++;
+  }
+}
+
 server.close();
 
 if (broken.length) {
@@ -124,5 +161,5 @@ if (broken.length) {
   for (const b of broken) console.error(`  ${b.why}  ${b.path}`);
   process.exit(1);
 }
-console.log(`link-check: ${checked} pages, no broken internal links; ${redirects} old URLs redirect correctly`);
+console.log(`link-check: ${checked} pages, no broken internal links; ${redirects} old URLs redirect correctly; ${navChecked} nav-highlight assertions`);
 process.exit(0);

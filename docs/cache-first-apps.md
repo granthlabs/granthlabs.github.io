@@ -96,3 +96,9 @@ Notion's own numbers are the argument for measuring rather than assuming:
 
 Sources: Notion's engineering write-up on their WASM SQLite rollout, and the
 measurements in [Security & performance](/security-and-performance).
+
+## Where to next
+
+- [Replacing web storage](/replacing-web-storage) — if some of that cache is still a localStorage blob
+- [Encryption at rest](/encryption) — if what you are caching is not yours to leave readable
+- [Use cases](/use-cases) — the map, including when this is the wrong tool

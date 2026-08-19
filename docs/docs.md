@@ -20,6 +20,10 @@ thread, safe across tabs, with an IndexedDB fallback where OPFS is unavailable.
 
 - [Frameworks](./frameworks) — React, Vue, Svelte, Angular, Solid
 - [TanStack Query, RxJS, Zustand](./state-libraries) — with the state library you already use
+
+## Use cases
+
+- **[Which one is you](./use-cases)** — start from the symptom, and the cases where this is the wrong tool
 - [Replacing localStorage and sessionStorage](./replacing-web-storage) — moving tokens and app state off web storage
 - [Cache-first apps](./cache-first-apps) — the Notion-style local read model
 - [Encryption at rest](./encryption) — what it protects and what it cannot

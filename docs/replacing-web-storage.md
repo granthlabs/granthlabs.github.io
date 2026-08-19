@@ -133,3 +133,9 @@ if (!Granth.isSupported()) {
 The storage list already degrades on its own — OPFS, then IndexedDB, then
 memory — so Safari private browsing gets a working database rather than an
 exception. See [Storage](/storage).
+
+## Where to next
+
+- [Cache-first apps](/cache-first-apps) — if the data came from a server you keep re-fetching
+- [Encryption at rest](/encryption) — if it is not your data to leave readable on someone's disk
+- [Use cases](/use-cases) — the map, including when this is the wrong tool

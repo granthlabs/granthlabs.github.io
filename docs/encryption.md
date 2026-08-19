@@ -172,3 +172,9 @@ const { quota, usage } = await navigator.storage.estimate();
 
 Catch write failures and degrade deliberately — queue to memory, prompt the user,
 or drop the oldest cached rows. Do not assume a write succeeded.
+
+## Where to next
+
+- [Replacing web storage](/replacing-web-storage#where-auth-tokens-belong-read-this-first) — where session tokens actually belong, which is not here
+- [Cache-first apps](/cache-first-apps) — the read model this usually sits underneath
+- [Use cases](/use-cases) — the map, including when this is the wrong tool

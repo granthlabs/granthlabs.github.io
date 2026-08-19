@@ -138,7 +138,13 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started' },
       { text: 'Docs', link: '/docs' },
       { text: 'API', link: '/granth' },
-      { text: 'Use cases', link: '/replacing-web-storage' },
+      // Points at the OVERVIEW, not at one of the three. Clicking a nav item
+      // called "Use cases" and landing in the middle of a specific one gives you
+      // no way to see the others without opening the sidebar. `activeMatch`
+      // keeps the item lit on all four pages — without it VitePress highlights
+      // on exact URL match only, so the header stopped saying where you were the
+      // moment you followed a link.
+      { text: 'Use cases', link: '/use-cases', activeMatch: '^/(use-cases|replacing-web-storage|cache-first-apps|encryption)' },
       { text: 'Migrate', link: '/migrating-from-dexie' },
       {
         text: 'Playground',
@@ -168,6 +174,7 @@ export default defineConfig({
       {
         text: 'Use cases',
         items: [
+          { text: 'Which one is you', link: '/use-cases' },
           { text: 'Replacing web storage', link: '/replacing-web-storage' },
           { text: 'Cache-first apps', link: '/cache-first-apps' },
           { text: 'Encryption at rest', link: '/encryption' },
