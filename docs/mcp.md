@@ -12,6 +12,14 @@ objects rather than off a page that may have aged.
 npx granth-mcp
 ```
 
+::: warning Not on npm yet
+`granth-mcp` is built and tested in
+[the repository](https://github.com/granthlabs/granth/tree/main/packages/tools/mcp)
+but has not been published — it imports two constants added in 0.2.10, so it
+cannot resolve against granthdb 0.2.9. Until that release lands, `npx` will 404.
+Clone and run `node packages/tools/mcp/dist/index.js` to try it.
+:::
+
 ## Why this exists, given llms.txt already does
 
 The whole documentation set is published as
