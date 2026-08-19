@@ -169,6 +169,7 @@ export default defineConfig({
           { text: 'Migrating from Dexie', link: '/migrating-from-dexie' },
           { text: 'Frameworks', link: '/frameworks' },
           { text: 'TanStack, RxJS, Zustand', link: '/state-libraries' },
+          { text: 'MCP server', link: '/mcp' },
         ],
       },
       {

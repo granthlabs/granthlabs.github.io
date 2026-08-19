@@ -20,6 +20,7 @@ thread, safe across tabs, with an IndexedDB fallback where OPFS is unavailable.
 
 - [Frameworks](./frameworks) — React, Vue, Svelte, Angular, Solid
 - [TanStack Query, RxJS, Zustand](./state-libraries) — with the state library you already use
+- [MCP server](./mcp) — let a coding assistant run granthdb code instead of guessing at it
 
 ## Use cases
 

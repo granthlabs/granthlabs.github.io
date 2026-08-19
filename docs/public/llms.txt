@@ -26,6 +26,7 @@ local copy and never the only copy.
 - [Frameworks & bundlers](https://granthlabs.github.io/frameworks): granth is plain ESM with no framework coupling. The core works anywhere; only React and Vue get a (tiny, optional) binding, because they have no store contract.
 - [TanStack Query, RxJS, Zustand and friends](https://granthlabs.github.io/state-libraries): The goal is that granthdb needs no adapter. A live query is already an observable, already a Svelte store, and already exposes .unsubscribe(). Three whole ecosystems work with no glue at all
 - [Migrating from Dexie or IndexedDB](https://granthlabs.github.io/migrating-from-dexie): Two jobs: your code and your data.
+- [MCP server](https://granthlabs.github.io/mcp): granth-mcp gives a coding assistant two things it cannot get by reading: a database to run your query against, and the API surface read off the live objects rather than off a page that may h
 
 ## Use cases
 

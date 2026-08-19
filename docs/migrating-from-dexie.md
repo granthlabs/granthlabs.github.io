@@ -7,12 +7,41 @@ Two jobs: your **code** and your **data**.
 The API is matched against the real `dexie` package by a generated audit
 (`compat-audit.mjs`) that fails the build on any regression:
 
-| Class | Coverage |
-|---|---|
-| WhereClause | **18 / 18** |
-| Table | 27 / 28 (`defineClass`, deprecated in Dexie itself) |
-| Collection | 26 / 28 (`clone`, `raw` — Dexie internals) |
-| Dexie | 20 / 26 (middleware, `idbdb` — meaningless without IndexedDB) |
+| Class | Coverage | Not implemented |
+|---|---|---|
+| WhereClause | **18 / 18** | — |
+| Table | 27 / 28 | `defineClass`, deprecated in Dexie itself |
+| Collection | 26 / 28 | `clone`, `raw` — Dexie internals |
+| Granth | 21 / 26 | `backendDB`, `idbdb`, `dynamicallyOpened`, `vip`, `unuse` |
+
+Measured against dexie 4.4.5.
+
+### The gaps, as data
+
+Two exported constants, so a tool reads the same list CI asserts:
+
+```js
+import { DEXIE_WAIVERS, DEXIE_DIVERGENCES } from 'granthdb';
+```
+
+**`DEXIE_WAIVERS`** — the eight Dexie members granth deliberately does not
+implement, each with its reason. Anything missing from granth and missing from
+this list is a bug rather than a decision, and the audit fails the build on it.
+
+**`DEXIE_DIVERGENCES`** — names that exist here but do not mean what they mean in
+Dexie. A separate list because it is the more dangerous hazard: a missing method
+throws immediately, while a name with a different contract accepts your call and
+quietly does something else.
+
+It holds one entry, `use`. Dexie's `use()` installs DBCore middleware; granth has
+no DBCore layer, and `db.use(addon)` registers before/after hooks and returns a
+handle with `dispose()`. See [Plugins](/plugins).
+
+That entry is also why the second list exists. `use` sat among the waivers for a
+long time, described as having no equivalent — while it had been implemented all
+along. The audit could not catch it: it only inspects members Dexie has and
+granth lacks, so a waiver for something present is never looked up and never
+contradicted. The [MCP server](/mcp) checks both directions, and found this one.
 
 ### Run the codemod
 
@@ -48,7 +77,8 @@ Your queries, schema strings, hooks and transactions stay as they are.
 | `Collection.modify(fn)` | ✅ atomic batch | none |
 | `Collection.distinct()` | no-op | none — we never duplicate rows |
 | `upgrade()` callbacks | ➡️ moved | put them in the worker's `upgrades: { 2: fn }` |
-| `Dexie.use()` / `unuse()` | ❌ | no middleware layer |
+| `Dexie.use()` | ⚠️ same name, different thing | granth's `use()` is an addon hook, not DBCore middleware — see [Plugins](/plugins) |
+| `Dexie.unuse()` | ❌ | not needed — `use()` returns a handle with `dispose()` |
 | `db.backendDB()` / `idbdb` | ❌ | there is no IDBDatabase |
 | `Dexie.Promise` / PSD zones | ❌ | **plain promises — always `await` your writes** |
 | `Date`, `NaN`, `Infinity`, `BigInt` | ✅ preserved | a value codec keeps structured-clone fidelity that plain JSON would lose |
@@ -84,10 +114,11 @@ Stores with out-of-line keys throw a clear error — granth requires an inline `
 
 ## 3. What you gain
 
-- **Filter on one index, order by another** —,
-  30 👍, impossible in IndexedDB.
-- `toMap()`, `for await` iteration, `clearAll()`,
-  `size()`.
+- **Filter on one index, order by another** in one statement — not expressible
+  over a single IndexedDB cursor, so in Dexie it means fetching and sorting in JS.
+- `sum()`, `avg()`, `min()`, `max()` evaluated in SQLite rather than by pulling
+  every matching row across the worker boundary.
+- `toMap()`, `for await` iteration, `clearAll()`, `size()`.
 - Real SQL indexes and query planning instead of cursor walking.
 - Queries run in a worker, off the main thread.
 - No "first `toArray()` returns `[]`" ordering trap — queries auto-open.
