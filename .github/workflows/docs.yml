@@ -8,6 +8,16 @@ concurrency: { group: pages, cancel-in-progress: false }
 jobs:
   build:
     runs-on: ubuntu-latest
+    # `cancel-in-progress: false` above is the Pages recommendation and correct —
+    # a half-written deploy is worse than a slow one. But it means a hung run
+    # holds the `pages` group for as long as it lives, and GitHub's default is
+    # SIX HOURS. One did exactly that: every later push queued behind it, the
+    # site quietly stopped updating, and the runs showing [X] had been CANCELLED
+    # by the queue rather than having failed. Nothing said so.
+    #
+    # A full run is 15-20 minutes, most of it Playwright. 35 bounds a hang to
+    # something noticeable without firing on a slow browser download.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,6 +56,9 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Seconds in practice; it holds the same concurrency group, so it gets a
+    # bound for the same reason.
+    timeout-minutes: 10
     environment: { name: github-pages, url: '${{ steps.deployment.outputs.page_url }}' }
     steps:
       - id: deployment
