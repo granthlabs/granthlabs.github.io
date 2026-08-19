@@ -997,3 +997,17 @@
 .built__tabs button.is-on { color: var(--g-accent); border-color: var(--g-accent-soft); background: var(--g-accent-soft); }
 .built__tabs button.is-on span { color: var(--g-accent); opacity: .8; }
 .built__blurb { margin: 0; font-size: var(--g-text-base); line-height: 1.6; color: var(--g-text-2); max-width: 62ch; }
+
+/* Which app this frame belongs to. The slider runs straight through both, so
+   the app name has to travel with the caption — otherwise sliding past the
+   boundary changes the subject with nothing saying so. */
+.slides__app {
+  flex: 0 0 auto;
+  font: 700 var(--g-text-xs)/1.6 var(--g-font);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+}
+/* A wider gap marks where one app's frames end and the next begins, so the dots
+   read as two groups without needing a second control to say so. */
+.slides__dots button.is-first { margin-left: var(--g-space-4); }

@@ -54,10 +54,12 @@ Pick what you're building on and we'll take you straight to the setup for it.
 
 <div class="pick-grid pick-grid--wide">
   <a class="pick-card" href="./tutorial">
+    <span class="pick-card__logo pick-card__logo--js" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24"><rect width="24" height="24" rx="3" fill="currentColor"/><path d="M13.2 18.9c.45.74.9 1.15 1.72 1.33 1.1.14 2.2-.24 1.96-1.41-.25-.96-2.25-1.19-3.61-2.2-1.38-.93-1.71-3.18-.57-4.47.39-.48 1.03-.84 1.71-1l.7-.09c1.37-.03 2.2.33 2.84 1.03.18.18.31.36.58.78-.72.45-.72.45-1.75 1.13-.23-.48-.59-.78-.98-.9-.6-.18-1.36.01-1.51.66-.06.2-.05.38.04.7.24.56 1.06.8 1.8 1.15 2.11.86 2.82 1.78 3 2.87.16.95-.05 1.56-.08 1.65-.78 2.67-5.13 2.76-6.87 1-.36-.42-.6-.63-.81-1.11l1.83-1.05Zm-6.9.15c.02 0 .06.09.13.2.23.39.43.66.83.86.39.12 1.24.2 1.57-.48.2-.35.14-1.48.14-2.71 0-1.94.01-3.87.01-5.81h2.25v6.23c0 1.28.11 2.42-.4 3.35-.35.72-1.03 1.19-1.81 1.41-1.2.28-2.35.11-3.21-.4-.57-.34-1.02-.88-1.32-1.51l1.81-1.14Z" fill="#0b1220"/></svg></span>
     <span class="pick-card__name">Vanilla JS</span>
     <span class="pick-card__note">No framework — start from the tutorial</span>
   </a>
   <a class="pick-card" href="./runtimes">
+    <span class="pick-card__logo pick-card__logo--noworker" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1.5v3M15 1.5v3M9 19.5v3M15 19.5v3M1.5 9h3M1.5 15h3M19.5 9h3M19.5 15h3"/></svg></span>
     <span class="pick-card__name">No Worker</span>
     <span class="pick-card__note">Strict CSP, SSR, Node and tests</span>
   </a>
@@ -178,6 +180,8 @@ await db.friends.where('age').above(30).toArray();
 .pick-card__logo--vue     { color: #42B883; }
 .pick-card__logo--svelte  { color: #FF3E00; }
 .pick-card__logo--angular { color: #DD0031; }
+.pick-card__logo--js       { color: #F7DF1E; }
+.pick-card__logo--noworker { color: var(--g-text-3); }
 .pick-card__name { font-size: var(--g-text-lg); font-weight: 600; color: var(--g-text); }
 .pick-card__note { font-size: var(--g-text-sm); color: var(--g-text-3); line-height: 1.5; }
 </style>

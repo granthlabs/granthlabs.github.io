@@ -18,6 +18,9 @@ One table. Reach it as `db.friends` or `db.table('friends')`.
 | `bulkGet(keys)` | `Promise<(T\|undefined)[]>` | **One round trip.** Order preserved; misses are `undefined` |
 | `toArray()` | `Promise<T[]>` | |
 | `count()` | `Promise<number>` | |
+| `sum(keyPath)` | `Promise<number \| null>` | Computed in SQLite; `null` over an empty set |
+| `avg(keyPath)` | `Promise<number \| null>` | |
+| `min(keyPath)` / `max(keyPath)` | `Promise<number \| null>` | See [Collection](./collection#aggregates) |
 | `each(fn)` | `Promise<void>` | |
 | `toMap(keyPath?)` | `Promise<Map>` | Keyed by primary key, or any keyPath |
 | `where(index)` | [`WhereClause`](./where-clause) | |

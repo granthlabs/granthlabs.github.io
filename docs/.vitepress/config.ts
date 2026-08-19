@@ -89,6 +89,14 @@ export default defineConfig({
     ['meta', { name: 'color-scheme', content: 'dark' }],
     ['style', {}, 'html{background:#14161c;background:oklch(16.5% 0.014 260);color-scheme:dark}'],
     ['meta', { name: 'theme-color', content: '#3b5b7a' }],
+    // There was no favicon of any kind, so every browser fell back to a
+    // /favicon.ico that does not exist and drew its blank-page placeholder.
+    // SVG first for anything modern; the .ico is the fallback older browsers
+    // and some feed readers request without asking, and apple-touch-icon is
+    // what iOS uses when a page is added to the home screen.
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
     ['meta', { property: 'og:title', content: 'granth — SQLite in the browser' }],
     ['meta', { property: 'og:description', content: 'A Dexie-compatible API over SQLite/WASM on OPFS. Real indexes, a real query planner, off the main thread.' }],
     ['meta', { property: 'og:type', content: 'website' }],

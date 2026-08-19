@@ -378,19 +378,6 @@ async function copy() {
               service and no build step</strong> — and both are in the repository, so every
               claim below is something you can read the source of.
             </p>
-            <div class="built__tabs" role="tablist" aria-label="Example apps">
-              <button
-                v-for="a in showcaseApps"
-                :key="a.name"
-                type="button"
-                role="tab"
-                :aria-selected="currentApp === a.name"
-                :class="{ 'is-on': currentApp === a.name }"
-                @click="slideTo(appStart(a.name))"
-              >
-                {{ a.name }}<span>{{ a.kind }}</span>
-              </button>
-            </div>
             <p class="built__blurb">{{ activeApp.blurb }}</p>
           </header>
 
@@ -428,23 +415,24 @@ async function copy() {
                 </div>
 
                 <div class="slides__bar">
-                  <button class="slides__arrow" type="button" aria-label="Previous view" @click="slideTo(appStart(currentApp) + (slide - appStart(currentApp) + activeApp.frames.length - 1) % activeApp.frames.length)">‹</button>
+                  <button class="slides__arrow" type="button" aria-label="Previous view" @click="slideTo(slide - 1)">‹</button>
                   <p class="slides__caption">
+                    <span class="slides__app">{{ showcaseSlides[slide].app }}</span>
                     <strong>{{ showcaseSlides[slide].label }}</strong>
                     <code>{{ showcaseSlides[slide].code }}</code>
                   </p>
-                  <button class="slides__arrow" type="button" aria-label="Next view" @click="slideTo(appStart(currentApp) + (slide - appStart(currentApp) + 1) % activeApp.frames.length)">›</button>
+                  <button class="slides__arrow" type="button" aria-label="Next view" @click="slideTo(slide + 1)">›</button>
                 </div>
 
                 <div class="slides__dots">
                   <button
-                    v-for="(f, i) in activeApp.frames"
-                    :key="f.file"
+                    v-for="(sl, i) in showcaseSlides"
+                    :key="sl.file"
                     type="button"
-                    :class="{ 'is-on': appStart(currentApp) + i === slide }"
-                    :aria-current="appStart(currentApp) + i === slide"
-                    :aria-label="f.label"
-                    @click="slideTo(appStart(currentApp) + i)"
+                    :class="{ 'is-on': i === slide, 'is-first': i > 0 && showcaseSlides[i - 1].app !== sl.app }"
+                    :aria-current="i === slide"
+                    :aria-label="`${sl.app}: ${sl.label}`"
+                    @click="slideTo(i)"
                   />
                 </div>
               </div>
