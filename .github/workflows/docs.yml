@@ -37,7 +37,25 @@ jobs:
       # granthlabs/granth disagree about a shared file.
       - run: node examples/playground/drift-check.mjs
 
-      - run: npx playwright install --with-deps chromium
+      # No `--with-deps`, and cached.
+      #
+      # `--with-deps` spent TWENTY-EIGHT MINUTES here on one run, and none of it
+      # was the browser: it was apt fetching font packages from a stalled
+      # azure.archive.ubuntu.com. fonts-wqy-zenhei alone idled for 888 seconds.
+      # Those are CJK, Thai and Unicode fallback fonts for rendering non-Latin
+      # text, and every page these tests drive is in English. The ubuntu-latest
+      # image already carries the libraries Chromium itself needs.
+      #
+      # The cache then skips the browser download too, so a warm run does no
+      # network work here at all. Keyed on the lockfile, which is what pins the
+      # Playwright version — a bump misses the cache and downloads once.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
       - run: node examples/playground/link-check.mjs
       # Fetching a URL and clicking a link are different acts: /play/ is not a
       # VitePress route, so a click used to get the SPA's 404 while every fetch
