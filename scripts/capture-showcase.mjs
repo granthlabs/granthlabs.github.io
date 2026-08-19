@@ -47,7 +47,18 @@ await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}`;
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 820 }, deviceScaleFactor: 2 });
+// deviceScaleFactor 1, not 2.
+//
+// At 2 these came out 2560x1640 for a slot that renders about 600 CSS px wide —
+// roughly nineteen times the pixels needed. Six of them is 96 MB of decoded
+// bitmap sitting inside one rounded, clipped, shadowed container, which is
+// enough to stall the main thread on a hover and make the whole page feel
+// frozen. At 1 it is 1280x820: still above 1:1 device pixels on a retina screen
+// at this size, and 25 MB instead of 96.
+//
+// The viewport stays 1280 because that is the layout the app is being
+// photographed IN — shrinking it would photograph a different, narrower UI.
+const page = await browser.newPage({ viewport: { width: 1280, height: 820 }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.error('  page error:', e.message));
 
 /** Wait for an app to be genuinely ready, not merely loaded. */

@@ -823,9 +823,16 @@
   overflow: hidden;
   background: var(--g-bg);
   box-shadow: var(--g-shadow-lg);
-  transition: border-color var(--g-fast), transform var(--g-slow);
+  transition: border-color var(--g-fast);
 }
-.built__shot:hover { border-color: var(--g-accent-dim); transform: translateY(-3px); }
+/* Border colour only. There was a `transform: translateY(-3px)` here, and this
+   element is the expensive one on the page: `overflow: hidden` plus a large
+   radius plus a big soft shadow, wrapped around a full-bleed screenshot. Moving
+   it re-rasterises that whole clipped, rounded subtree, so brushing the mouse
+   past the panel on the way to the nav stalled the main thread — which is what
+   made the site feel frozen and the search button feel dead. The lift was
+   decoration; the border already says the panel is interactive. */
+.built__shot:hover { border-color: var(--g-accent-dim); }
 
 /* Slider. Crossfade rather than a horizontal track: the frames are the same app
    in different states, so sliding them past each other implies a spatial
@@ -835,14 +842,29 @@
    absolutely positioned over it. Otherwise the section would jump every time a
    frame of a slightly different height came in. */
 .slides { position: relative; display: grid; }
+
+/* THE FLICKER: `visibility` was set but not transitioned, so on every switch the
+   outgoing frame vanished on the first frame while the incoming one was still at
+   opacity 0 — for the whole 240ms you were looking at the panel background
+   through a half-drawn image. It read as a blink, not a fade.
+   Delaying the hide by the fade duration makes it a real cross-fade.
+
+   Deleting `visibility` entirely also fixes the blink and is worse: these are
+   1280x820 screenshots, and leaving all six composited means the browser holds
+   every one of them in a layer under a rounded, clipped, shadowed container. The
+   hidden ones must stay out of paint. */
 .slides__item {
   grid-area: 1 / 1;
   display: block;
   opacity: 0;
   visibility: hidden;
-  transition: opacity var(--g-slow) ease;
+  transition: opacity var(--g-slow) ease, visibility 0s linear var(--g-slow);
 }
-.slides__item.is-on { opacity: 1; visibility: visible; }
+.slides__item.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--g-slow) ease, visibility 0s;
+}
 .slides__item img { display: block; width: 100%; height: auto; }
 
 .slides__bar {
@@ -873,38 +895,51 @@
 }
 .slides__meta { margin-left: auto; font: var(--g-text-xs)/1.6 var(--g-mono); color: var(--g-text-3); }
 
-/* 32px, not the 16px an arrow glyph wants to be: this is a pointer target and a
-   touch target, and 24 is the floor for one. */
-.slides__arrow {
-  flex: 0 0 auto;
-  width: 32px; height: 32px;
-  display: grid; place-items: center;
-  font-size: 20px; line-height: 1;
-  color: var(--g-text-2);
-  background: var(--g-bg-panel);
-  border: 1px solid var(--g-line-soft);
-  border-radius: var(--g-radius);
-  cursor: pointer;
-  transition: color var(--g-fast), border-color var(--g-fast);
+/* The dots, above the shot. The active one grows into a pill rather than only
+   changing colour: width is legible at a glance and from the corner of the eye,
+   and it survives the case colour alone does not — a reader who cannot separate
+   the accent from the line grey still sees which one is long. */
+.slides__nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin-bottom: var(--g-space-4);
 }
-.slides__arrow:hover { color: var(--g-text); border-color: var(--g-accent-dim); }
 
-.slides__dots { display: flex; justify-content: center; gap: var(--g-space-2); padding: 0 0 var(--g-space-3); background: var(--g-bg-sunk); }
-.slides__dots button {
-  width: 26px; height: 4px; padding: 0;
-  border: 0; border-radius: var(--g-radius-pill);
-  background: var(--g-line);
+.slides__dot {
+  /* The visible dot is 8px; the button is 24px tall with the paint drawn by a
+     pseudo-element, because 8px is well under the 24px minimum target size and
+     a control you have to aim at is a control you miss. */
+  position: relative;
+  width: 10px; height: 24px;
+  padding: 0; border: 0;
+  background: none;
   cursor: pointer;
+  transition: width var(--g-slow) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slides__dot::before {
+  content: '';
+  position: absolute;
+  inset: 10px 0;
+  border-radius: var(--g-radius-pill);
+  background: var(--g-line);
   transition: background var(--g-fast);
 }
-.slides__dots button:hover { background: var(--g-accent-dim); }
-.slides__dots button.is-on { background: var(--g-accent); }
+.slides__dot:hover::before { background: var(--g-accent-dim); }
+.slides__dot.is-on { width: 30px; }
+.slides__dot.is-on::before { background: var(--g-accent); }
 
-/* The whole strip is one control set; enlarging the hit area is not worth
-   animating a transform on a container that holds a 2x screenshot. */
+/* A wider gap where one app ends and the next begins, so six dots read as
+   two groups of three rather than one run of six. */
+.slides__dot.is-first { margin-left: var(--g-space-5); }
+
+/* The default ring is drawn around the 10px box and looks detached from the
+   4px bar inside it. */
+.slides__dot:focus-visible { outline: 2px solid var(--g-accent); outline-offset: 2px; border-radius: var(--g-radius); }
+
 @media (prefers-reduced-motion: reduce) {
-  .slides__item { transition: none; }
-  .built__shot:hover { transform: none; }
+  .slides__item, .slides__dot { transition: none; }
 }
 
 .built__chrome {

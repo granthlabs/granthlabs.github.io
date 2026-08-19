@@ -132,7 +132,7 @@ const showcaseApps = [
     href: '/play/ledger/',
     blurb: '12,000 transactions over three years. Balances are summed from the rows, date ranges ride a compound index, and a transfer writes both sides in one transaction.',
     frames: [
-      { file: 'ledger-all.png', label: 'Balances summed from the rows', code: 'entries.where(...).toArray()' },
+      { file: 'ledger-all.png', label: 'Balances summed in SQLite', code: "where('account').equals(a).sum('amount')" },
       { file: 'ledger-narrow.png', label: 'A date range on a compound index', code: "where('[account+date]').between(…)" },
       { file: 'ledger-category.png', label: 'Narrowed again, totals follow', code: ".filter(e => e.category === 'food')" },
     ],
@@ -145,7 +145,7 @@ const showcaseApps = [
     ],
     steps: [
       { title: 'A transfer is two writes or none', body: 'Money leaving one account and arriving at another is a single transaction, so there is no state where one happened without the other.', code: "db.transaction('rw', db.entries, tx => …)" },
-      { title: 'Balances are derived, never stored', body: 'Each balance is summed from its rows after every write. A total kept beside the rows is a total that eventually disagrees with them.', code: "where('account').equals('current')" },
+      { title: 'Balances are derived, never stored', body: 'Each balance is summed from its rows after every write — in SQLite, so one number crosses the worker boundary rather than every row that went into it. A total kept beside the rows is a total that eventually disagrees with them.', code: "where('account').equals('current').sum('amount')" },
       { title: 'One account, one date range', body: 'The shape a single-index cursor store handles worst: a compound index turns it into one seek instead of a scan filtered afterwards.', code: "where('[account+date]').between(…)" },
       { title: 'Money is integer pence', body: 'Never floating point. 0.1 + 0.2 is not 0.3 in binary, and a ledger that is a penny out is a broken ledger.', code: 'amount: -3550   // £35.50' },
     ],
@@ -393,6 +393,33 @@ async function copy() {
                    Not auto-advancing: a carousel that moves on its own takes the
                    reading speed out of the reader's hands and is a known
                    accessibility problem. It moves when you ask it to. -->
+              <!-- Dots ABOVE the shot and no arrows.
+                   A ‹ › pair either side of the caption made the strip below the
+                   image read as a toolbar competing with the screenshot, and two
+                   32px chrome buttons is a lot of furniture for six frames. The
+                   dots alone say how many there are and where you are, which is
+                   the whole job. Arrow keys replace what the buttons did. -->
+              <div
+                class="slides__nav"
+                role="tablist"
+                aria-label="Showcase views"
+                @keydown.left.prevent="slideTo(slide - 1)"
+                @keydown.right.prevent="slideTo(slide + 1)"
+              >
+                <button
+                  v-for="(sl, i) in showcaseSlides"
+                  :key="sl.file"
+                  type="button"
+                  role="tab"
+                  class="slides__dot"
+                  :class="{ 'is-on': i === slide, 'is-first': i > 0 && showcaseSlides[i - 1].app !== sl.app }"
+                  :aria-selected="i === slide"
+                  :tabindex="i === slide ? 0 : -1"
+                  :aria-label="`${sl.app}: ${sl.label}`"
+                  @click="slideTo(i)"
+                />
+              </div>
+
               <div class="built__shot">
                 <span class="built__chrome" aria-hidden="true">
                   <i /><i /><i />
@@ -415,25 +442,11 @@ async function copy() {
                 </div>
 
                 <div class="slides__bar">
-                  <button class="slides__arrow" type="button" aria-label="Previous view" @click="slideTo(slide - 1)">‹</button>
                   <p class="slides__caption">
                     <span class="slides__app">{{ showcaseSlides[slide].app }}</span>
                     <strong>{{ showcaseSlides[slide].label }}</strong>
                     <code>{{ showcaseSlides[slide].code }}</code>
                   </p>
-                  <button class="slides__arrow" type="button" aria-label="Next view" @click="slideTo(slide + 1)">›</button>
-                </div>
-
-                <div class="slides__dots">
-                  <button
-                    v-for="(sl, i) in showcaseSlides"
-                    :key="sl.file"
-                    type="button"
-                    :class="{ 'is-on': i === slide, 'is-first': i > 0 && showcaseSlides[i - 1].app !== sl.app }"
-                    :aria-current="i === slide"
-                    :aria-label="`${sl.app}: ${sl.label}`"
-                    @click="slideTo(i)"
-                  />
                 </div>
               </div>
 
