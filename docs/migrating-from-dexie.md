@@ -82,9 +82,14 @@ Your queries, schema strings, hooks and transactions stay as they are.
 | `db.backendDB()` / `idbdb` | ❌ | there is no IDBDatabase |
 | `Dexie.Promise` / PSD zones | ❌ | **plain promises — always `await` your writes** |
 | `Date`, `NaN`, `Infinity`, `BigInt` | ✅ preserved | a value codec keeps structured-clone fidelity that plain JSON would lose |
+| Typed arrays, `ArrayBuffer`, `DataView` | ✅ preserved | with their constructor, so a `Float64Array` does not come back a `Uint8Array` |
+| `Map`, `Set`, `RegExp` | ✅ preserved | recursively — a `Map` of `Date`s survives intact |
+| `Blob`, `File` | ⚠️ throws | reading their bytes is async and the codec is not — pass `.arrayBuffer()`, see [Files and binary data](/files-and-binary) |
+| `Error` | ❌ stores as `{}` | a round-tripped Error loses its stack and its prototype; store a message and a code |
 
-The last one is the only real behavioural trap: Dexie's zones let you fire writes inside a
-transaction without awaiting them. Here you must `await`.
+**`Dexie.Promise` / PSD zones is the one real behavioural trap.** Dexie's zones let you fire
+writes inside a transaction without awaiting them. Here you must `await`. (Named rather than
+called "the last one" — it stopped being last the moment rows were added below it.)
 
 ## 2. Data
 
