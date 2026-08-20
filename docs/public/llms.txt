@@ -34,6 +34,7 @@ local copy and never the only copy.
 - [Replacing localStorage, sessionStorage and IndexedDB](https://granthlabs.github.io/replacing-web-storage): Most apps reach for localStorage because it is two lines, then keep using it long after it stopped fitting. This page is about when that has happened, and what to move to.
 - [Cache-first apps: the Notion pattern](https://granthlabs.github.io/cache-first-apps): The clearest public case for a browser-side SQL database is Notion's, described on their engineering blog. It is worth understanding because it includes the part most write-ups leave out: th
 - [Encrypting data at rest](https://granthlabs.github.io/encryption): Browser storage is not encrypted. OPFS, IndexedDB and localStorage all sit on disk in plaintext, readable by anyone with access to the device profile. If you cache someone's notes, messages,
+- [Files and binary data](https://granthlabs.github.io/files-and-binary): Two questions get tangled together here, and separating them decides everything that follows:
 
 ## Architecture
 

@@ -29,7 +29,7 @@ const SITE = 'https://granthlabs.github.io';
 const SECTIONS = [
   { title: 'Start here', pages: ['getting-started', 'tutorial', 'docs'] },
   { title: 'Guides', pages: ['frameworks', 'state-libraries', 'migrating-from-dexie', 'mcp'] },
-  { title: 'Use cases', pages: ['use-cases', 'replacing-web-storage', 'cache-first-apps', 'encryption'] },
+  { title: 'Use cases', pages: ['use-cases', 'replacing-web-storage', 'cache-first-apps', 'encryption', 'files-and-binary'] },
   { title: 'Architecture', pages: ['storage', 'runtimes', 'plugins', 'security-and-performance'] },
   { title: 'API reference', pages: ['granth', 'table', 'collection', 'where-clause', 'transaction', 'live-query', 'errors'] },
 ];

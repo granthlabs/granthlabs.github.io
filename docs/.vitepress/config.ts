@@ -144,7 +144,7 @@ export default defineConfig({
       // keeps the item lit on all four pages — without it VitePress highlights
       // on exact URL match only, so the header stopped saying where you were the
       // moment you followed a link.
-      { text: 'Use cases', link: '/use-cases', activeMatch: '^/(use-cases|replacing-web-storage|cache-first-apps|encryption)' },
+      { text: 'Use cases', link: '/use-cases', activeMatch: '^/(use-cases|replacing-web-storage|cache-first-apps|encryption|files-and-binary)' },
       { text: 'Migrate', link: '/migrating-from-dexie' },
       {
         text: 'Playground',
@@ -178,6 +178,7 @@ export default defineConfig({
           { text: 'Which one is you', link: '/use-cases' },
           { text: 'Replacing web storage', link: '/replacing-web-storage' },
           { text: 'Cache-first apps', link: '/cache-first-apps' },
+          { text: 'Files and binary data', link: '/files-and-binary' },
           { text: 'Encryption at rest', link: '/encryption' },
         ],
       },

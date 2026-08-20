@@ -28,6 +28,7 @@ thread, safe across tabs, with an IndexedDB fallback where OPFS is unavailable.
 - [Replacing localStorage and sessionStorage](./replacing-web-storage) — moving tokens and app state off web storage
 - [Cache-first apps](./cache-first-apps) — the Notion-style local read model
 - [Encryption at rest](./encryption) — what it protects and what it cannot
+- [Files and binary data](./files-and-binary) — where a PDF belongs, and why OPFS is not the user's disk
 
 ## Architecture
 

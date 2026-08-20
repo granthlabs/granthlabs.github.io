@@ -347,6 +347,7 @@ thread, safe across tabs, with an IndexedDB fallback where OPFS is unavailable.
 - [Replacing localStorage and sessionStorage](./replacing-web-storage) — moving tokens and app state off web storage
 - [Cache-first apps](./cache-first-apps) — the Notion-style local read model
 - [Encryption at rest](./encryption) — what it protects and what it cannot
+- [Files and binary data](./files-and-binary) — where a PDF belongs, and why OPFS is not the user's disk
 
 ## Architecture
 
@@ -1277,13 +1278,75 @@ some users.
 
 Notion moved page data into a WASM build of SQLite in the browser, backed by
 OPFS, with a single connection owned by one elected context. They measured
-roughly a **20% improvement in navigation time**.
+roughly a **20% improvement in navigation time** across modern browsers — and
+much more where the network is the bottleneck: **28% in Australia, 31% in China,
+33% in India**.
 
 The instructive detail is the shape of the win. It moved the **median**
 substantially, and on slow devices the **p95 got worse** before they tuned it —
 because reading from disk on a low-end machine can be slower than fetching over
 a fast network. A local cache is not automatically faster. It is faster *on
 average*, and you have to measure the tail.
+
+### What they actually built
+
+Worth reading closely, because the constraints they hit are the ones anyone hits:
+
+- **`opfs-sahpool`, not the plain OPFS VFS.** They tried the standard one first
+  and abandoned it: it needs cross-origin isolation, which means COOP/COEP
+  headers, which means every third-party embed on the page has to comply. They
+  called that an unrealistic ask.
+- **Corruption came first, not the fix.** Multiple tabs writing concurrently
+  produced duplicate rows with the same id and different content — surfacing to
+  users as a comment attributed to the wrong colleague. The single-writer design
+  is what that bug bought.
+- **A SharedWorker holds the election.** Each tab has its own dedicated Worker,
+  but only one tab may write. The SharedWorker tracks which tab is active using
+  Web Locks — when a tab closes its lock drops and a new tab is designated — and
+  routes every tab's queries to whichever one holds write access.
+- **The WASM never blocks page load.** Loading it synchronously made the first
+  page slower, and the gain from serving that first page locally did not cover
+  the cost of downloading several hundred kilobytes of library to do it. It
+  loads fully asynchronously; the first page comes from the network.
+
+### Their fix for the p95 regression, which is worth stealing
+
+On slow devices they stopped choosing between local and network and **raced
+them**, taking whichever answered first:
+
+```js
+const rows = await Promise.any([
+  db.pages.where('workspace').equals(id).toArray().then((r) => r.length ? r : Promise.reject()),
+  fetch(`/api/pages?workspace=${id}`).then((r) => r.json()),
+]);
+```
+
+A local read is usually faster, so it usually wins and costs nothing. When the
+disk is slow it loses, and the user gets the network answer instead of waiting
+for the cache to lose slowly. `Promise.any` rather than `Promise.race` so an
+empty or failed local read does not win by returning nothing.
+
+## How granthdb compares
+
+The two designs converged, which is the point of the table below rather than a
+claim of novelty — the platform leaves very little choice:
+
+| | Notion | granthdb |
+|---|---|---|
+| VFS | `opfs-sahpool` | `opfs-sahpool` |
+| COOP/COEP required | no | no |
+| Writers | one tab, elected | one tab, elected |
+| Election | SharedWorker + Web Locks | Web Locks + BroadcastChannel |
+| Query routing | through the SharedWorker | through the leader |
+| Fallback when OPFS is unavailable | — | IndexedDB, then memory |
+| Racing local against network | hand-rolled | your call — the snippet above |
+
+The one real difference is the election topology. A SharedWorker is a single
+coordinator; granthdb elects a leader directly over Web Locks and announces
+changes on a BroadcastChannel, which means no SharedWorker dependency — it is
+still unsupported in some mobile contexts — at the cost of the leader being a
+tab that can vanish. That is what [`LeaderLostError`](/errors) exists to tell you
+about.
 
 ## Why the topology matters
 
@@ -1556,6 +1619,165 @@ or drop the oldest cached rows. Do not assume a write succeeded.
 - [Replacing web storage](/replacing-web-storage#where-auth-tokens-belong-read-this-first) — where session tokens actually belong, which is not here
 - [Cache-first apps](/cache-first-apps) — the read model this usually sits underneath
 - [Use cases](/use-cases) — the map, including when this is the wrong tool
+
+
+---
+
+# Files and binary data
+
+Source: https://granthlabs.github.io/files-and-binary
+
+Two questions get tangled together here, and separating them decides everything
+that follows:
+
+1. **Can a web app read and write files on the user's actual disk?** Sometimes,
+   in some browsers, and OPFS is not how.
+2. **Where should a PDF, an image or a model weight live in a local-first app?**
+   Not inside a database row.
+
+## OPFS is not "files on the device"
+
+granthdb stores its database in the **Origin Private File System**, and the name
+misleads people constantly. OPFS is a private, origin-scoped area the browser
+manages. The user cannot see it in Finder or Explorer, no other origin can read
+it, and nothing outside the browser can open it. It behaves like a filesystem
+because it has directories and real file handles with `read()`/`write()` at
+offsets — which is exactly why SQLite can live there — but it is storage, not
+the user's documents.
+
+Reading and writing the user's *real* files is a different API entirely:
+
+| | Origin Private File System | File System Access API |
+|---|---|---|
+| What it reaches | a private area only your origin sees | files the user picks, anywhere on disk |
+| Visible to the user | no | yes — it is their file |
+| Survives clearing site data | no | the file does; your permission does not |
+| Entry point | `navigator.storage.getDirectory()` | `showOpenFilePicker()`, `showSaveFilePicker()`, `showDirectoryPicker()` |
+| Chrome / Edge | yes | **yes** |
+| Safari | yes | **no** |
+| Firefox | yes | **no** |
+| Android | yes | **no** |
+
+The pickers are Chromium-only, on desktop only, and they require a secure
+context and a real user gesture — you cannot call one during startup. Safari has
+shipped OPFS since 15.2 and has never shipped the pickers. So if the plan is
+"our web app edits files on your machine", the honest scope is Chrome and Edge
+on desktop, with a `<input type="file">` and a download link everywhere else.
+
+None of that is a granthdb limitation and none of it is something a library can
+fix. Feature-detect and branch:
+
+```js
+if ('showOpenFilePicker' in window) {
+  const [handle] = await window.showOpenFilePicker();   // Chromium
+} else {
+  // everyone else: <input type="file"> in, <a download> out
+}
+```
+
+## Binary inside granthdb
+
+`ArrayBuffer`, every typed array and `DataView` round-trip exactly, keeping
+their type:
+
+```js
+const bytes = new Uint8Array(await file.arrayBuffer());
+await db.files.add({ name: file.name, type: file.type, size: file.size, bytes });
+
+const row = await db.files.get(id);
+row.bytes instanceof Uint8Array;   // true
+```
+
+The constructor is stored alongside the data, because a `Float64Array` and a
+`Uint8Array` over identical bytes are different values and decoding to the wrong
+one is a silent numeric change rather than an error.
+
+**`Blob` and `File` throw.** Reading their bytes is asynchronous and the codec
+runs inside the write path, so they cannot be encoded there. The error names the
+fix — call `.arrayBuffer()` first. This is deliberate: they used to encode to
+`{}`, which meant the file was gone with nothing raised.
+
+### The cost, stated plainly
+
+Bytes are stored base64-encoded inside the row's JSON document. That means:
+
+- **+33% size.** 1 MB of bytes occupies 1.33 MB in the row — measured, not
+  estimated.
+- **The whole document is parsed on every read of that row.** Reading the `name`
+  column is cheap, but `get()` re-parses the base64 too.
+
+That is the right trade for an avatar, a signature, a thumbnail or an icon. It
+is the wrong trade for a PDF, a video or a model file.
+
+## The pattern for large files
+
+Keep the bytes in OPFS and the metadata in granthdb. This is what the apps that
+do this well converge on, and it is the same split as the database itself: one
+place that is good at queries, one that is good at bytes.
+
+```js
+db.version(1).stores({ docs: '++id, name, folder, updated, size' });
+
+async function store(file) {
+  const key = crypto.randomUUID();
+  // Bytes go to OPFS, whole, with no encoding step.
+  const root = await navigator.storage.getDirectory();
+  const blobs = await root.getDirectoryHandle('blobs', { create: true });
+  const handle = await blobs.getFileHandle(key, { create: true });
+  const w = await handle.createWritable();
+  await file.stream().pipeTo(w);          // never held in memory entire
+
+  // The row is small, indexed, and queryable.
+  return db.docs.add({ key, name: file.name, type: file.type,
+                       size: file.size, folder: 'inbox', updated: Date.now() });
+}
+
+async function open(id) {
+  const row = await db.docs.get(id);
+  const root = await navigator.storage.getDirectory();
+  const blobs = await root.getDirectoryHandle('blobs');
+  return (await blobs.getFileHandle(row.key)).getFile();   // a real File
+}
+```
+
+What this buys:
+
+- **No base64, no JSON.** The bytes are written straight to a file.
+- **Streaming.** `pipeTo` never materialises the whole file in memory, so a
+  500 MB import does not allocate 500 MB.
+- **Real queries over the metadata** — `where('folder').equals('inbox')`,
+  `orderBy('updated')`, `sum('size')` — because that is a row, not a blob.
+
+Two things to get right:
+
+- **Delete both.** Removing the row and leaving the file is how an OPFS
+  directory quietly fills up. Delete the file first, then the row: an orphaned
+  file is recoverable by sweeping the directory against the table, an orphaned
+  row points at nothing.
+- **The fast path is worker-only.** `createSyncAccessHandle()` — the synchronous
+  one — is not exposed on the main thread. `createWritable()` works anywhere and
+  is asynchronous. Note that it writes to a temporary copy and only swaps it in
+  when the stream closes cleanly, so an interrupted write leaves the old file
+  intact rather than a half-written one.
+
+::: tip Not shipped in granthdb
+This is a documented pattern, not an API. If you would rather granthdb owned
+the sidecar — `db.docs.attach(id, file)` and `db.docs.blob(id)` — that is a
+reasonable thing to want; it is a design decision that has not been made yet.
+:::
+
+## Quota and eviction
+
+The bytes count against the same origin quota as the database.
+
+```js
+const { quota, usage } = await navigator.storage.estimate();
+await navigator.storage.persist();     // ask not to be evicted
+```
+
+Safari clears script-writable storage after 7 days without interaction, and iOS
+is the most aggressive about it, so a cache-first design must be able to refetch.
+See [Storage](/storage).
 
 
 ---

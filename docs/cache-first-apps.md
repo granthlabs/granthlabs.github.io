@@ -9,13 +9,75 @@ some users.
 
 Notion moved page data into a WASM build of SQLite in the browser, backed by
 OPFS, with a single connection owned by one elected context. They measured
-roughly a **20% improvement in navigation time**.
+roughly a **20% improvement in navigation time** across modern browsers — and
+much more where the network is the bottleneck: **28% in Australia, 31% in China,
+33% in India**.
 
 The instructive detail is the shape of the win. It moved the **median**
 substantially, and on slow devices the **p95 got worse** before they tuned it —
 because reading from disk on a low-end machine can be slower than fetching over
 a fast network. A local cache is not automatically faster. It is faster *on
 average*, and you have to measure the tail.
+
+### What they actually built
+
+Worth reading closely, because the constraints they hit are the ones anyone hits:
+
+- **`opfs-sahpool`, not the plain OPFS VFS.** They tried the standard one first
+  and abandoned it: it needs cross-origin isolation, which means COOP/COEP
+  headers, which means every third-party embed on the page has to comply. They
+  called that an unrealistic ask.
+- **Corruption came first, not the fix.** Multiple tabs writing concurrently
+  produced duplicate rows with the same id and different content — surfacing to
+  users as a comment attributed to the wrong colleague. The single-writer design
+  is what that bug bought.
+- **A SharedWorker holds the election.** Each tab has its own dedicated Worker,
+  but only one tab may write. The SharedWorker tracks which tab is active using
+  Web Locks — when a tab closes its lock drops and a new tab is designated — and
+  routes every tab's queries to whichever one holds write access.
+- **The WASM never blocks page load.** Loading it synchronously made the first
+  page slower, and the gain from serving that first page locally did not cover
+  the cost of downloading several hundred kilobytes of library to do it. It
+  loads fully asynchronously; the first page comes from the network.
+
+### Their fix for the p95 regression, which is worth stealing
+
+On slow devices they stopped choosing between local and network and **raced
+them**, taking whichever answered first:
+
+```js
+const rows = await Promise.any([
+  db.pages.where('workspace').equals(id).toArray().then((r) => r.length ? r : Promise.reject()),
+  fetch(`/api/pages?workspace=${id}`).then((r) => r.json()),
+]);
+```
+
+A local read is usually faster, so it usually wins and costs nothing. When the
+disk is slow it loses, and the user gets the network answer instead of waiting
+for the cache to lose slowly. `Promise.any` rather than `Promise.race` so an
+empty or failed local read does not win by returning nothing.
+
+## How granthdb compares
+
+The two designs converged, which is the point of the table below rather than a
+claim of novelty — the platform leaves very little choice:
+
+| | Notion | granthdb |
+|---|---|---|
+| VFS | `opfs-sahpool` | `opfs-sahpool` |
+| COOP/COEP required | no | no |
+| Writers | one tab, elected | one tab, elected |
+| Election | SharedWorker + Web Locks | Web Locks + BroadcastChannel |
+| Query routing | through the SharedWorker | through the leader |
+| Fallback when OPFS is unavailable | — | IndexedDB, then memory |
+| Racing local against network | hand-rolled | your call — the snippet above |
+
+The one real difference is the election topology. A SharedWorker is a single
+coordinator; granthdb elects a leader directly over Web Locks and announces
+changes on a BroadcastChannel, which means no SharedWorker dependency — it is
+still unsupported in some mobile contexts — at the cost of the leader being a
+tab that can vanish. That is what [`LeaderLostError`](/errors) exists to tell you
+about.
 
 ## Why the topology matters
 
