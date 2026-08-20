@@ -69,6 +69,14 @@ The constructor is stored alongside the data, because a `Float64Array` and a
 `Uint8Array` over identical bytes are different values and decoding to the wrong
 one is a silent numeric change rather than an error.
 
+`Map`, `Set` and `RegExp` round-trip too, and recursively — a `Map` of `Date`s
+or a `Set` of `Uint8Array`s survives intact. They are in the structured clone
+algorithm, so IndexedDB keeps them and so does this.
+
+**`Error` is the one exception.** It is structured-cloneable, but a round-tripped
+Error loses its stack and gains a different prototype, so restoring one would be
+a half-truth. It stores as `{}`. Store the message and a code instead.
+
 **`Blob` and `File` throw.** Reading their bytes is asynchronous and the codec
 runs inside the write path, so they cannot be encoded there. The error names the
 fix — call `.arrayBuffer()` first. This is deliberate: they used to encode to
