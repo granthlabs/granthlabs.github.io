@@ -60,6 +60,50 @@ export default defineConfig({
       );
     }
   },
+  /**
+   * Per-post SEO for /blog/.
+   *
+   * Done in one hook rather than a `head` block in ten frontmatters: a
+   * hand-copied meta block is correct until someone duplicates a post to start
+   * a new one and forgets to change the URL, and nothing would ever fail. The
+   * canonical, the article OG tags and the BlogPosting JSON-LD are all derived
+   * from the page's own path and frontmatter, so they cannot disagree with it.
+   */
+  transformPageData(pageData) {
+    const rel = pageData.relativePath;
+    if (!rel.startsWith('blog/') || rel === 'blog/index.md') return;
+
+    const fm = pageData.frontmatter;
+    const slug = rel.replace(/\.md$/, '');
+    const url = `https://granthlabs.github.io/${slug}`;
+    const image = 'https://granthlabs.github.io/showcase.png';
+
+    fm.head ??= [];
+    fm.head.push(
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:type', content: 'article' }],
+      ['meta', { property: 'og:url', content: url }],
+      ['meta', { property: 'og:title', content: fm.title ?? '' }],
+      ['meta', { property: 'og:description', content: fm.description ?? '' }],
+      ['meta', { property: 'article:published_time', content: fm.date ?? '' }],
+      ['meta', { name: 'twitter:title', content: fm.title ?? '' }],
+      ['meta', { name: 'twitter:description', content: fm.description ?? '' }],
+      ['script', { type: 'application/ld+json' }, JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: fm.title,
+        description: fm.description,
+        datePublished: fm.date,
+        dateModified: fm.date,
+        keywords: (fm.tags ?? []).join(', '),
+        image,
+        mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+        author: { '@type': 'Person', name: 'Sundar Shahi Thakuri' },
+        publisher: { '@type': 'Organization', name: 'granthdb', url: 'https://granthlabs.github.io/' },
+        isPartOf: { '@type': 'Blog', name: 'granthdb blog', url: 'https://granthlabs.github.io/blog/' },
+      })],
+    );
+  },
   title: 'granthdb',
   description: 'SQLite in the browser with a Dexie-compatible API. OPFS-backed, runs in a Web Worker, safe across tabs.',
   lang: 'en-GB',
@@ -146,6 +190,7 @@ export default defineConfig({
       // moment you followed a link.
       { text: 'Use cases', link: '/use-cases', activeMatch: '^/(use-cases|replacing-web-storage|cache-first-apps|encryption|files-and-binary)' },
       { text: 'Migrate', link: '/migrating-from-dexie' },
+      { text: 'Blog', link: '/blog/', activeMatch: '^/blog/' },
       {
         text: 'Playground',
         items: [

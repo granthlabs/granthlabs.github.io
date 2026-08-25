@@ -68,6 +68,9 @@ jobs:
       # full-size screenshots composited at once — the hover stall that made the
       # whole page feel frozen.
       - run: node examples/playground/slider-test.mjs
+      # Ten posts whose diagrams are inline SVG in markdown: a stray blank line
+      # or a label wider than its box renders wrong while the build stays green.
+      - run: node examples/playground/blog-test.mjs
       - run: node examples/playground/flash-probe.mjs
 
       - uses: actions/configure-pages@v5

@@ -1046,3 +1046,286 @@
 /* A wider gap marks where one app's frames end and the next begins, so the dots
    read as two groups without needing a second control to say so. */
 .slides__dots button.is-first { margin-left: var(--g-space-4); }
+
+
+/* .pmeta and .pnav are deliberately NOT scoped under .vp-doc. They render in
+   Layout's doc-before / doc-after slots, which are SIBLINGS of .vp-doc inside
+   .content-container — scoping them there made every rule dead and the byline
+   collapsed to an unstyled vertical stack. Only the index markup, which really
+   does live inside .vp-doc, needs the extra specificity. */
+/* ------------------------------------------------------------------ blog ---- */
+
+/* Hairline rows, not a card grid. The `.benefits` section on the landing page
+   made the same call for the same reason: outlined boxes fight each other, and
+   a rule is enough separation to let the titles carry the page.
+
+   Everything below sits inside VitePress's own doc container, so the width and
+   the sidebar behaviour come free and this only styles content. */
+
+.vp-doc .blog { max-width: 760px; }
+
+.vp-doc .blog__eyebrow {
+  margin: 0 0 var(--g-space-3);
+  font-size: var(--g-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--g-text-3);
+}
+
+.vp-doc .blog__title {
+  margin: 0 0 var(--g-space-4);
+  font-size: clamp(2rem, 3.2vw, var(--g-text-3xl));
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  /* Large type wants tight leading; the 1.5 that suits body text looks slack here. */
+  line-height: 1.1;
+  color: var(--g-text);
+}
+
+.vp-doc .blog__lede {
+  margin: 0;
+  max-width: 60ch;      /* the paragraph is capped, not the container */
+  font-size: var(--g-text-lg);
+  line-height: 1.6;
+  color: var(--g-text-2);
+}
+
+/* More space ABOVE the filter row than between its chips, so the chips read as
+   one group belonging to the list rather than as part of the lede. */
+.vp-doc .blog__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--g-space-2);
+  margin: var(--g-space-7) 0 var(--g-space-4);
+}
+
+.vp-doc .blog__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  /* 32px tall: a filter is a pointer and touch target, and 24 is the floor. */
+  min-height: 32px;
+  padding: 0 var(--g-space-3);
+  font: 500 var(--g-text-sm) / 1 var(--g-font);
+  color: var(--g-text-2);
+  background: none;
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius-pill);
+  cursor: pointer;
+  transition: color var(--g-fast), border-color var(--g-fast), background var(--g-fast);
+}
+
+.vp-doc .blog__chip:hover { color: var(--g-text); border-color: var(--g-accent-dim); }
+.vp-doc .blog__chip.is-on {
+  color: var(--g-accent);
+  border-color: var(--g-accent-dim);
+  background: var(--g-accent-soft);
+}
+.vp-doc .blog__chipn { font: var(--g-text-xs) / 1 var(--g-mono); color: var(--g-text-3); }
+.vp-doc .blog__chip.is-on .blog__chipn { color: var(--g-accent); }
+
+.vp-doc .blog__count {
+  margin: 0 0 var(--g-space-5);
+  font: var(--g-text-xs) / 1.6 var(--g-mono);
+  color: var(--g-text-3);
+}
+
+.vp-doc .blog__list { list-style: none; margin: 0; padding: 0; }
+
+.vp-doc .blog__item + .blog__item { border-top: 1px solid var(--g-line-soft); }
+
+/* The whole row is the target, not just the title — a link you have to aim at
+   is a link people miss. */
+.vp-doc .blog__link {
+  display: block;
+  padding: var(--g-space-6) 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity var(--g-fast);
+}
+.vp-doc .blog__link:hover .blog__post-title { color: var(--g-accent); }
+.vp-doc .blog__link:focus-visible {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 4px;
+  border-radius: var(--g-radius);
+}
+
+.vp-doc .blog__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin: 0 0 var(--g-space-2);
+  font: var(--g-text-xs) / 1 var(--g-mono);
+  color: var(--g-text-3);
+}
+
+.vp-doc .blog__post-title {
+  margin: 0 0 var(--g-space-2);
+  font-size: var(--g-text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--g-text);
+  transition: color var(--g-fast);
+  /* VitePress styles h2 inside .vp-doc with a top border and big margins. */
+  border: 0;
+  padding: 0;
+}
+
+.vp-doc .blog__desc {
+  margin: 0;
+  max-width: 68ch;
+  line-height: 1.65;
+  color: var(--g-text-2);
+}
+
+.vp-doc .blog__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--g-space-2);
+  margin: var(--g-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.vp-doc .blog__tags li {
+  font: var(--g-text-xs) / 1 var(--g-mono);
+  color: var(--g-text-3);
+  padding: 4px var(--g-space-2);
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius);
+}
+
+.vp-doc .blog__empty {
+  margin: var(--g-space-7) 0;
+  padding: var(--g-space-6);
+  border: 1px dashed var(--g-line);
+  border-radius: var(--g-radius-lg);
+  color: var(--g-text-2);
+  text-align: center;
+}
+.vp-doc .blog__reset {
+  display: inline-block;
+  margin-left: var(--g-space-2);
+  font: 600 var(--g-text-sm) / 1 var(--g-font);
+  color: var(--g-accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- the byline under a post's h1 ---- */
+
+.pmeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--g-space-3);
+  margin-bottom: var(--g-space-6);
+}
+.pmeta__row {
+  display: flex;
+  align-items: center;
+  gap: var(--g-space-2);
+  margin: 0;
+  font: var(--g-text-xs) / 1 var(--g-mono);
+  color: var(--g-text-3);
+}
+.pmeta__tags { display: flex; flex-wrap: wrap; gap: var(--g-space-2); margin: 0; padding: 0; list-style: none; }
+.pmeta__tags li {
+  font: var(--g-text-xs) / 1 var(--g-mono);
+  color: var(--g-text-3);
+  padding: 3px var(--g-space-2);
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius);
+}
+.pmeta__back { margin: 0 0 0 auto; font-size: var(--g-text-sm); }
+.pmeta__back a { color: var(--g-text-3); text-decoration: none; }
+.pmeta__back a:hover { color: var(--g-accent); }
+
+/* ---- read next ---- */
+
+.pnav {
+  margin-top: var(--g-space-8);
+  padding-top: var(--g-space-6);
+  border-top: 1px solid var(--g-line-soft);
+}
+.pnav__h {
+  margin: 0 0 var(--g-space-4);
+  font-size: var(--g-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--g-text-3);
+  border: 0;
+  padding: 0;
+}
+.pnav__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--g-space-3); }
+.pnav__item {
+  display: block;
+  padding: var(--g-space-4);
+  border: 1px solid var(--g-line-soft);
+  border-radius: var(--g-radius-lg);
+  text-decoration: none;
+  transition: border-color var(--g-fast);
+}
+.pnav__item:hover { border-color: var(--g-accent-dim); }
+.pnav__item:hover .pnav__title { color: var(--g-accent); }
+.pnav__title {
+  display: block;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--g-text);
+  transition: color var(--g-fast);
+}
+.pnav__desc {
+  display: block;
+  margin-top: var(--g-space-2);
+  font-size: var(--g-text-sm);
+  line-height: 1.6;
+  color: var(--g-text-3);
+}
+.pnav__cta { margin: var(--g-space-5) 0 0; font-weight: 600; }
+
+/* Figures carry the diagrams in posts. Wide ones scroll inside their own box
+   rather than making the page scroll sideways. */
+.vp-doc figure { margin: var(--g-space-6) 0; }
+.vp-doc figure svg { display: block; width: 100%; height: auto; }
+.vp-doc figcaption {
+  margin-top: var(--g-space-3);
+  font-size: var(--g-text-sm);
+  line-height: 1.6;
+  color: var(--g-text-3);
+}
+
+@media (max-width: 640px) {
+.vp-doc .blog__link { padding: var(--g-space-5) 0; }
+.pmeta__back { margin-left: 0; }
+}
+
+/* VitePress styles `.vp-doc ol`, `.vp-doc li` and `.vp-doc a` at a specificity
+   the single-class selectors below could not beat, so the index rendered as a
+   NUMBERED list of fully underlined links with bullet-marked tags and doc-sized
+   margins. Everything here is therefore scoped under `.vp-doc`, and the three
+   inherited behaviours are reset explicitly rather than hoped away. */
+.vp-doc .blog ol,
+.vp-doc .blog ul { list-style: none; margin: 0; padding: 0; }
+.vp-doc .blog li { margin: 0; }
+.vp-doc .blog li + li { margin-top: 0; }
+.vp-doc .blog a,
+.pnav a { text-decoration: none; }
+.vp-doc .blog a:hover,
+.pnav a:hover { text-decoration: none; }
+.vp-doc .blog__link,
+.vp-doc .blog__link * { color: inherit; }
+.pmeta ul,
+.pnav ul { list-style: none; margin: 0; padding: 0; }
+.pmeta li,
+.pnav li { margin: 0; }
+/* The index page has no prose h1/h2 of its own, and VitePress gives every
+   `.vp-doc h2` a top border and 48px of margin. */
+.vp-doc .blog h1,
+.vp-doc .blog h2,
+.pnav h2 { border-top: 0; margin-top: 0; padding-top: 0; letter-spacing: inherit; }

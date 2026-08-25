@@ -16,7 +16,7 @@
  *   llms-full.txt — the territory. Every page inlined, for a model that would
  *                   otherwise make N requests to read the same thing.
  */
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -57,12 +57,35 @@ const onDisk = readdirSync(DOCS)
   .map((f) => basename(f, '.md'))
   .filter((s) => s !== 'index');
 
+/**
+ * Blog posts, newest first.
+ *
+ * A separate walk because they live in a subfolder, and the whole point of
+ * llms.txt is that a model reading the site finds everything — ten posts that
+ * only the sitemap knows about are ten pages that do not exist as far as an
+ * assistant is concerned. Sorted by frontmatter date rather than by filename so
+ * the ordering matches what a reader sees on /blog/.
+ */
+const BLOG = join(DOCS, 'blog');
+const blogPosts = existsSync(BLOG)
+  ? readdirSync(BLOG)
+      .filter((f) => f.endsWith('.md') && f !== 'index.md' && !f.startsWith('_'))
+      .map((f) => `blog/${basename(f, '.md')}`)
+      .sort((a, b) => {
+        const date = (slug) =>
+          /^date:\s*"?([\d-]+)/m.exec(readFileSync(join(DOCS, `${slug}.md`), 'utf8'))?.[1] ?? '';
+        return date(b).localeCompare(date(a));
+      })
+  : [];
+
 // A page nobody listed still gets listed. The failure mode this exists to stop
 // is a new doc that is invisible to every model reading the site.
 const extra = onDisk.filter((s) => !known.has(s));
-const sections = extra.length
-  ? [...SECTIONS, { title: 'Other pages', pages: extra }]
-  : SECTIONS;
+const sections = [
+  ...SECTIONS,
+  ...(blogPosts.length ? [{ title: 'Blog', pages: blogPosts }] : []),
+  ...(extra.length ? [{ title: 'Other pages', pages: extra }] : []),
+];
 
 const head = `# granthdb
 

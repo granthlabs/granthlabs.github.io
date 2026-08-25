@@ -3016,3 +3016,2182 @@ during SSR. Guard with `Granth.isSupported()`.
 
 Unique index violations surface as SQLite errors containing `UNIQUE constraint failed`, and
 `add()` on an existing key throws (use `put()` to upsert).
+
+
+---
+
+# How to benchmark browser storage without fooling yourself
+
+Source: https://granthlabs.github.io/blog/benchmarking-browser-storage
+
+A storage benchmark is one of the easiest things in web development to get a
+wrong answer out of, because the wrong answer is usually the flattering one. You
+swap the storage layer, run a script in a tab, watch a number go down, and ship.
+Weeks later there is a small cluster of tickets from people on cheap Android
+phones saying the app feels slower — and the benchmark still says it got faster.
+
+Both are correct. The benchmark measured something real; it just wasn't the
+thing those users experience. Here are the five ways it happens, and what to
+measure instead.
+
+## The mean hides the users you hurt
+
+The clearest public example is Notion's. Moving page data into a WASM build of
+SQLite gave them roughly a **20% improvement in navigation time**, and much more
+where the network was the bottleneck: **28% in Australia, 31% in China, 33% in
+India**. It is a genuinely good result.
+
+It is also the result where, on slow devices, the **p95 got worse** before they
+tuned it — because reading from a cheap disk can lose to a fast network.
+
+A mean is a summary of a distribution, and it moves when the bulk of the
+distribution moves. The users who got slower are still inside that number,
+arithmetically cancelled out by the users who got faster. Nothing about
+computing an average is capable of surfacing them.
+
+So sort your samples and read the tail:
+
+```js
+const sorted = samples.slice().sort((a, b) => a - b);
+const p = (q) => sorted[Math.ceil(q * sorted.length) - 1];
+console.log(p(0.5), p(0.95), p(0.99), sorted.length);
+```
+
+Report p50, p95, p99 and `n` together, always. A change that improves the median
+and regresses p99 has traded your worst-served users for your best-served ones.
+That is sometimes the right trade. It is never a trade worth making by accident.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="The same ten thousand navigation timings produce two opposite conclusions: summarised as a mean the change looks twenty per cent faster and ships, while the ninety-fifth percentile of the identical samples shows that slow devices got slower and catches the regression before rollout." style="width:100%;height:auto;color:var(--g-text)">
+  <title>One set of timings, two summaries, two conclusions</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">summarised as a mean</text>
+  <rect x="16" y="30" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">10,000 timings</text>
+  <text x="80" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">one rollout</text>
+  <path d="M152 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="30" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">average them</text>
+  <text x="267" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">one number</text>
+  <path d="M350 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="30" width="234" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="406" y="47" fill="currentColor" font-size="11.5">20% faster — ship it</text>
+  <text x="406" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">regression is invisible</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">summarised as p95</text>
+  <rect x="16" y="122" width="128" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="80" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">10,000 timings</text>
+  <text x="80" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">the same ones</text>
+  <path d="M152 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="122" width="150" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="267" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">sort, take p95</text>
+  <text x="267" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">and p99</text>
+  <path d="M350 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="122" width="234" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="406" y="139" fill="currentColor" font-size="11.5">slow devices got slower</text>
+  <text x="406" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">caught before rollout</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">The same run, summarised two ways, disagrees about whether it worked.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">One of those summaries has a user behind it. The other has arithmetic.</text>
+ </svg>
+ <figcaption>A mean can tell you a change was net positive. It never tells you who paid for it.</figcaption>
+</figure>
+
+## Your laptop is not the device you are optimising for
+
+The numbers in [Security & performance](/security-and-performance) were
+measured in Chrome on an M-series Mac, and they say so, because that context is
+half the measurement. On that machine a local read beats the network every single
+time. The regression Notion found is not *small* on hardware like that — it is
+unobservable. There is no sample where the disk loses.
+
+CPU throttling in devtools does not fix this. It throttles the CPU, and what you
+changed was storage I/O. A 6× CPU slowdown on an NVMe SSD is still an NVMe SSD.
+
+The only measurement that tells you about slow devices is one taken on a slow
+device: a cheap Android phone over remote debugging, or the oldest machine
+anyone in the company still has. One real device beats any amount of simulated
+throttling, because the thing you need to observe is the disk.
+
+## Assert a ratio, not a millisecond
+
+This is the assertion almost every storage benchmark starts with:
+
+```js
+expect(elapsed).toBeLessThan(50);
+```
+
+What it actually asserts is which CI runner you got. The measurements in the
+granth repo vary by roughly ±3× on a single machine depending on load, so a
+threshold tight enough to catch a real regression is loose enough to flake on a
+busy afternoon. Someone bumps it to 200, and now it catches nothing at all.
+
+Hold the work constant, vary the one thing that should not matter, and assert
+the **ratio** between them:
+
+```js
+const oneAtATime = await time(() => insertIndividually(rows));
+const batched = await time(() => db.items.bulkAdd(rows));
+
+expect(batched).toBeLessThan(oneAtATime / 10);
+```
+
+Both halves ran on the same machine within the same second, so the machine
+cancels out. `bulkAdd` measures around 200× the throughput of the same rows
+added one at a time — each individual write is its own durable commit — so
+asserting a mere 10× leaves generous room for a loaded runner while still
+failing loudly the day someone removes the chunking.
+
+The same shape covers the regressions actually worth catching:
+
+- **Same query, 5,000 rows against 50,000.** Assert the time grows far less
+  than 10×. Linear growth means the index stopped being used.
+- **Indexed against unindexed column**, same table, same predicate.
+- **`bulkGet(500)` against 500 `get()` calls** — one round trip against 500,
+  measured at roughly 35×.
+
+Each of those is a question about your code. "Under 50 ms" is a question about
+your laptop, and you already know the answer.
+
+## Warm, cold, and which one your users actually get
+
+A benchmark that runs the same query 200 times and averages is measuring the
+200th run. By then SQLite's page cache is warm, the OS is holding the file, the
+WASM module is compiled, the connection is open and the statement is prepared.
+
+The first navigation of a session pays for none of that being true. It pays for
+the WASM download — several hundred kilobytes, cached after the first visit —
+plus instantiation, opening the OPFS file, and planning the query cold. That
+cost is exactly why Notion loads the module fully asynchronously and serves the
+first page from the network; loading it synchronously made first paint slower
+than the network it was replacing.
+
+Both numbers are real, and averaging them produces a number that describes
+nobody. Measure and report them separately:
+
+- **Cold:** a fresh profile or private window, timed from `open()` to first row.
+  This is once per session, and it is the one a warm-only benchmark cannot see.
+- **Warm:** discard the first handful of runs, then measure. This is every other
+  query the user makes.
+
+If your benchmark only ever measures warm queries, it is structurally incapable
+of noticing the cost you just added to first load. See
+[storage and its fallbacks](/storage) for what "open" involves on each path.
+
+## A query duration is not a jank measurement
+
+`performance.now()` around an `await` gives you the same 26 ms whether that scan
+ran on the main thread or in a Worker. To the user those are completely
+different events: one drops two frames, the other drops none.
+
+So record long tasks alongside durations:
+
+```js
+new PerformanceObserver((list) => {
+  for (const e of list.getEntries()) console.log('long task', e.duration);
+}).observe({ entryTypes: ['longtask'] });
+```
+
+The honest converse also matters. If your storage work is a few hundred
+key-value reads, none of this will show up anywhere, and the correct conclusion
+from a well-run benchmark is to keep using `localStorage` or IndexedDB.
+Shipping a WASM SQLite build to store a preferences object is worse engineering,
+not better — the [comparison post](/blog/indexeddb-vs-sqlite-wasm) is fairly
+blunt about where the line sits.
+
+## When the measurement says "it depends"
+
+Sometimes the honest reading of a good benchmark is that neither path wins for
+everyone. Notion's answer to their p95 regression was to stop choosing and race:
+
+```js
+const rows = await Promise.any([
+  db.pages.where('workspace').equals(id).toArray().then((r) => r.length ? r : Promise.reject()),
+  fetch(`/api/pages?workspace=${id}`).then((r) => r.json()),
+]);
+```
+
+`Promise.any` rather than `Promise.race`, so an empty or failed local read
+cannot win by returning nothing. On a fast device the local read wins and the
+fetch costs you a request. On a slow one it loses, and the user gets an answer
+instead of waiting for the cache to lose slowly.
+
+Racing is itself measurable, and worth measuring: log which side won, bucketed
+by device class. If local wins nearly always, you are paying for a wasted fetch
+you could drop for most users. If it only wins half the time, you have learned
+something uncomfortable and useful about your cache.
+
+## The short version
+
+- Sort the samples. Report p50, p95, p99 and `n` — never a bare mean.
+- Run it on a slow device, because that is the only place the interesting
+  failure exists.
+- Assert ratios between two runs on the same machine, not absolute milliseconds.
+- Separate cold from warm, and never average them together.
+- Record long tasks, not just query durations.
+- Be willing to conclude that the thing you were about to adopt is not needed.
+
+## Trying it against granthdb
+
+granthdb is SQLite compiled to WebAssembly, stored in OPFS, behind a
+Dexie-compatible API. The repo ships the benchmark that produced the published
+numbers, so you can run it on your own hardware rather than trusting one Mac.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Security & performance](/security-and-performance)** — the measured
+  table, the machine it came from, and what is explicitly *not* faster
+- **[Cache-first apps](/cache-first-apps)** — the Notion pattern in full,
+  including the p95 regression and the race that fixed it
+- **[Use cases](/use-cases)** — including the ones where this is the wrong tool
+- **[Sandbox](/play/sandbox)** — run a query without installing anything
+
+
+---
+
+# Browser storage eviction: quota, Safari, and the rebuild path
+
+Source: https://granthlabs.github.io/blog/browser-storage-eviction
+
+A support ticket that begins "all my data is gone" is usually not a bug in your
+code. The browser deleted it, deliberately, and told nobody — not your app, not
+the user. The next `open()` succeeds against an empty database and everything
+downstream behaves as though the account is new.
+
+This is the part of browser-side storage that gets skipped, because it does not
+show up on a laptop with a full disk and a site you visit every day. It shows up
+in production, on somebody's iPhone, three weeks later.
+
+## Three ways local data disappears
+
+**Quota pressure.** Everything your origin stores — OPFS, IndexedDB, Cache
+Storage, `localStorage` — shares one budget, and that budget is a share of the
+device's free disk rather than a fixed allowance. When the device runs low the
+browser evicts, and it evicts by origin: not your largest table, not your oldest
+rows, the whole origin at once. Least recently used goes first, which means the
+users most likely to lose data are exactly the ones who use your app least.
+
+**Time.** Safari's tracking prevention clears script-writable storage after seven
+days of browser use without interaction with your site. Not seven days of wall
+clock — seven days of Safari being used while your site is not. A user who opens
+your app every second Monday can lose their local database in between, forever,
+without ever doing anything unusual. Two things are exempt: sites installed to
+the home screen, and origins that were granted persistence.
+
+Because this rule belongs to WebKit rather than to the Safari badge, on iOS it
+is closer to a platform rule than a browser one. Private browsing is harsher
+still: [there is no OPFS in a Safari private window at all](/storage) — a hard
+failure at open time, not a slow path. And iOS apps wrapping a web view through
+Capacitor lose their OPFS access handles when the app is backgrounded, which is a
+different failure with the same shape.
+
+**Everything else.** Cleanup utilities delete OPFS as "Internet Cache". Windows
+low-disk cleanup clears it. Chrome's incognito mode caps an OPFS database well
+below the normal quota and produces surprising errors at the ceiling. And
+underneath all
+of that, field data across this whole ecosystem shows roughly **0.1–0.2% of
+users** hitting outright corruption from browser crashes and third-party
+software — no eviction policy involved, just a file that no longer opens.
+
+<figure>
+ <svg viewBox="0 0 640 300" role="img" aria-label="A diagram showing that Safari's seven-day rule, disk pressure and cleanup tools or corruption all lead to the same outcome — a missing local database — which is unrecoverable data loss when the local store was the only copy and merely a refetch when it was a cache." style="width:100%;height:auto;color:var(--g-text)">
+  <title>Three causes of eviction, one outcome, two consequences</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">three ways it disappears</text>
+  <rect x="16" y="30" width="196" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="114" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">Safari clears it</text>
+  <text x="114" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">7 days, no interaction</text>
+  <rect x="222" y="30" width="196" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="320" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">the disk fills up</text>
+  <text x="320" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">origin evicted whole</text>
+  <rect x="428" y="30" width="196" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="526" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">cleanup tool, crash</text>
+  <text x="526" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">0.1–0.2% of users</text>
+  <path d="M114 70 v22 h176 v10" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M290 110 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <path d="M320 70 v32" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M320 110 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <path d="M526 70 v22 h-176 v10" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M350 110 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="190" y="110" width="260" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="320" y="127" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">the local database is gone</text>
+  <text x="320" y="142" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">next open() sees an empty file</text>
+  <path d="M320 150 v12 h-159 v10" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M161 180 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <path d="M320 150 v12 h159 v10" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M479 180 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="16" y="180" width="290" height="56" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="161" y="205" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">it was the only copy</text>
+  <text x="161" y="222" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">the user's data is gone</text>
+  <rect x="334" y="180" width="290" height="56" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="479" y="205" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">it was a cache</text>
+  <text x="479" y="222" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">refetch, reindex, carry on</text>
+  <text x="16" y="262" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">Eviction is not a failure you get to prevent.</text>
+  <text x="16" y="282" fill="currentColor" fill-opacity="0.55" font-size="11">It is the ordinary end of a browser store's life. Only the branch below it is yours.</text>
+ </svg>
+ <figcaption>The causes are unrelated to each other, which is why hardening against any one of them changes nothing — the branch at the bottom is the only design decision here.</figcaption>
+</figure>
+
+## What `estimate()` actually tells you
+
+```js
+const { quota, usage } = await navigator.storage.estimate();
+```
+
+Useful, with three caveats worth knowing before you build a storage meter on it.
+
+`quota` is derived from free disk space, so it moves. It is not an allowance the
+browser has set aside for you; it is a ceiling computed from conditions that
+change while your app is open. `usage` covers everything the origin stores, so it
+is not a measure of your database — `await db.size()` is the number that answers
+"are we the problem". And both are deliberately imprecise, padded and rounded so
+that one origin cannot fingerprint a device by measuring another's footprint.
+Treat them as orders of magnitude.
+
+The important part is what `estimate()` does *not* tell you. Being comfortably
+under quota does not mean your data will be there tomorrow. Quota governs whether
+a write succeeds now; none of the three causes above is a quota violation.
+
+## `persist()` is a request, not a setting
+
+```js
+const persisted = await navigator.storage.persist();
+```
+
+Ask, always — it is one line and it is what exempts you from Safari's seven-day
+rule. Then read the boolean and design for `false`.
+
+Chrome decides silently from engagement signals and may simply say no, with no
+prompt and no recourse. A `false` is a normal answer, not an error to retry.
+Even a `true` is narrower than it sounds: persisted storage still goes when the
+user clears site data, when a cleanup tool sweeps the disk, or when the file
+corrupts. Persistence removes one deletion path out of several.
+
+So `persist()` is worth calling and not worth branching on. If your app behaves
+differently depending on its result, you have built two code paths and you only
+ever test one.
+
+## The consequence: rebuildable, or a single copy in the worst place
+
+Here is the whole design rule, and everything else on this page is supporting
+detail.
+
+**If losing the local store loses user data, you have put the only copy of that
+data in the least durable storage available to you.** Not the second-least. The
+disk in a browser profile is the one thing on the device that other software is
+actively designed to delete.
+
+Three shapes, and only one of them is comfortable:
+
+- **A cache of server truth.** Eviction costs a refetch and a spinner. This is
+  the shape [granthdb is built for](/use-cases), and it is fine.
+- **Local-first with a working sync engine.** Also fine — the server copy exists,
+  sync just has to actually run. Note that "we will add sync later" means you are
+  in the third shape until later arrives. That distinction is the subject of
+  [offline-first versus local-first](/blog/offline-first-vs-local-first).
+- **User-authored data that never leaves the device.** This is the dangerous one,
+  and it is usually arrived at by accident — a draft, an unsent edit, a form the
+  user filled in offline. If you are here deliberately, periodic `db.export()`
+  snapshots are the only backup the platform gives you.
+
+Then exercise the rebuild path. Delete the database in a test and boot cold, on
+every release. A recovery path whose first real execution happens on the day a
+user is evicted is not a recovery path; it is untested code with a very bad
+audience.
+
+## Ship a reset control
+
+Eviction is at least clean — you get an empty database. Corruption is worse: the
+file exists, the open fails or the reads come back wrong, and no amount of
+reloading fixes it. At 0.1–0.2% of users, a hundred thousand people means one to
+two hundred whose app is broken in a way that support cannot talk them out of.
+
+So put `deleteDatabase()` behind a visible **"reset local data"** control. Not a
+debug flag, not a support macro someone pastes into the console — a control the
+user can find while the app is behaving badly.
+
+The wording is doing real work, because you are asking someone to delete
+something. Say what goes and what comes back: *this removes the copy stored on
+this device and downloads it again; anything not yet synced will be lost*. If
+nothing can be lost, say that too — it turns a frightening button into an obvious
+one.
+
+## The short checklist
+
+1. Call `navigator.storage.persist()` on first run. Log the result, do not branch
+   on it.
+2. Treat the local database as a cache. Every table needs an answer to "where
+   does this come back from".
+3. Test the cold-start rebuild in CI by deleting the database first.
+4. Ship a reset control, worded honestly.
+5. If the data is genuinely user-authored, take `export()` snapshots and store
+   them somewhere that is not this disk.
+
+None of that is specific to SQLite in the browser. It applies to `localStorage`,
+to IndexedDB, to Cache Storage and to [OPFS](/blog/what-is-opfs) equally — the
+eviction rules are per-origin, not per-API. What changes with a larger local
+store is only the size of the loss.
+
+## Where granthdb sits in this
+
+granthdb makes the rebuild path something you can call rather than something you
+have to write: `export()` and `import()` for snapshots, `delete()` for the reset
+control, `size()` for what you actually occupy, and an OPFS → IndexedDB → memory
+fallback so a Safari private window gets a working database instead of an
+exception. It does not pretend to be durable, and the docs say so on the page
+where you would look for a durability guarantee.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Storage](/storage)** — OPFS, the fallback chain, quotas and eviction
+- **[Security & performance](/security-and-performance)** — the explicit list of
+  what browser-local storage does not give you
+- **[Granth API](/granth)** — `export()`, `import()`, `delete()`, `size()`
+- **[Use cases](/use-cases)** — including the ones where this is the wrong tool
+
+
+---
+
+# Choosing a Dexie alternative, and verifying the drop-in claim
+
+Source: https://granthlabs.github.io/blog/dexie-alternative
+
+Dexie is not the problem. Its API is the one most wrappers copy:
+
+```js
+await db.friends.where('age').above(18).toArray();
+```
+
+is the right shape for a browser database, and years of shipped applications
+sit behind it.
+
+So when you go looking for a Dexie alternative, you are usually not looking for
+a different API. You are looking for a different engine underneath the same one
+— because a cursor walks exactly one index per query, and you have started
+pulling the whole matching set into JavaScript to display one page of it.
+[That trade-off has its own post](/blog/indexeddb-vs-sqlite-wasm); this one is
+about the other half of the decision.
+
+Which reframes the evaluation. "Does it look like Dexie" is not a useful
+question — every wrapper looks like Dexie. The useful question is how much of
+Dexie is actually there, and how you would know without finding out in
+production.
+
+## Three things "drop-in" can mean
+
+They are not the same claim, and they get progressively harder to make.
+
+1. **The names exist.** `db.table.where().equals().toArray()` resolves. Cheapest
+   to check and cheapest to fake — a stub that returns `[]` passes.
+2. **The names mean what they mean in Dexie.** A method that exists, accepts your
+   arguments and does something different is worse than one that is missing,
+   because a missing method throws on the first call.
+3. **Your code behaves the same.** Not the library's code — yours, with your
+   schema, your transactions and your assumptions about ordering.
+
+Most "Dexie-compatible" claims are the first one, stated as though it were the
+third. When you evaluate a replacement, insist on knowing which one is on offer.
+
+## Check the first claim against the package, not the docs
+
+A compatibility list written by hand describes what someone believed on the day
+they wrote it. The only list worth reading is one generated by walking the
+prototypes of the real `dexie` package, and re-generated in CI so it fails the
+build when it drifts.
+
+That is what granthdb's `compat-audit.mjs` does. Measured against dexie 4.4.5:
+
+| Class | Coverage | Not implemented |
+|---|---|---|
+| WhereClause | **18 / 18** | — |
+| Table | 27 / 28 | `defineClass`, deprecated in Dexie itself |
+| Collection | 26 / 28 | `clone`, `raw` — Dexie internals |
+| Granth | 21 / 26 | `backendDB`, `idbdb`, `dynamicallyOpened`, `vip`, `unuse` |
+
+92 of 100 members, with eight deliberate absences. Not a marketing number: pin
+the Dexie version, walk the prototype chains of both, and the number falls out.
+Ask any candidate replacement for that number and the script that produced it.
+
+## The eight gaps are exported as data
+
+The waivers are not prose in a table. They ship as constants:
+
+```js
+import { DEXIE_WAIVERS, DEXIE_DIVERGENCES } from 'granthdb';
+```
+
+`DEXIE_WAIVERS` holds the eight members granth deliberately does not implement,
+each with its reason. The point of exporting it is the invariant it makes
+checkable: anything missing from granth *and* missing from that list is a bug
+rather than a decision, and the audit fails the build on it.
+
+`DEXIE_DIVERGENCES` is the second claim above — names that exist here but do not
+mean what they mean in Dexie. It is a separate list because it is the more
+dangerous hazard. It holds exactly one entry.
+
+## Where a name-level audit goes blind
+
+Dexie's `use()` installs DBCore middleware. granth has no DBCore layer;
+`db.use(addon)` registers `before`/`after` hooks and returns a handle with
+`dispose()`. Same name, different contract — see [Plugins](/plugins).
+
+For a long time `use` sat in the waiver list, described as having no equivalent,
+while `db.use(addon)` had been the plugin hook all along. The audit passed every
+single run.
+
+It could not have failed. It compares members Dexie has against members granth
+lacks, so a waiver claiming something is absent that is in fact present is never
+looked up and never contradicted. The guard only ran in one direction, and the
+error was in the other one.
+
+What caught it was a test that runs both loops: every waived name must really be
+absent on the live object, and every divergent name must really be present. That
+second loop went red on its first execution, in the [MCP server](/mcp)'s test
+suite.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="A one-directional parity audit compares the hundred members of the real Dexie package against granth and never re-checks the eight waived names, so a name waived as missing while actually implemented stays invisible, whereas a second check asserting each waived name is really absent on the live object found that use had been present all along." style="width:100%;height:auto;color:var(--g-text)">
+  <title>A guard that only runs in one direction</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">one direction</text>
+  <rect x="16" y="30" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">100 members</text>
+  <text x="80" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">dexie 4.4.5</text>
+  <path d="M152 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="30" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">is it in granth?</text>
+  <text x="267" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">92 yes, 8 waived</text>
+  <path d="M350 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="30" width="234" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="406" y="47" fill="currentColor" font-size="11.5">a waiver is never re-checked</text>
+  <text x="406" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">waived-but-present is invisible</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">the other direction</text>
+  <rect x="16" y="122" width="128" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="80" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">the 8 waivers</text>
+  <text x="80" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">DEXIE_WAIVERS</text>
+  <path d="M152 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="122" width="150" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="267" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">assert absent</text>
+  <text x="267" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">on the live object</text>
+  <path d="M350 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="122" width="234" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="406" y="139" fill="currentColor" font-size="11.5">use() was present all along</text>
+  <text x="406" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">now a divergence, not a gap</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">An audit that only looks one way cannot contradict itself.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">The loop asserting the waivers are still true is the one that went red.</text>
+ </svg>
+ <figcaption>The whole lower row is green because the check failing is the check working.</figcaption>
+</figure>
+
+The general lesson survives the specific bug: a compatibility guard has a
+direction, and a guard that only runs one way will pass forever on errors in the
+other. Worth asking of any parity claim, including this one.
+
+## The third claim is your test suite
+
+Names and contracts are things a library can assert about itself. Behaviour
+under your code is not, and no audit will ever cover it. The differential test
+that matters is running your existing suite against the replacement, which is
+why the API being identical matters — it makes that a one-line swap rather than
+a rewrite of the tests too.
+
+`npx granth-codemod ./src` rewrites the imports and the `new Dexie(...)` calls,
+scaffolds a worker file if one is missing, and reports what it cannot safely
+rewrite rather than guessing. Run it with `--dry` first, then run your tests.
+
+The failures you should expect are behavioural, not name-level:
+
+- **`Dexie.Promise` and PSD zones are gone.** Dexie's zones let you fire writes
+  inside a transaction without awaiting them. Here they are plain promises, so
+  **always `await` your writes**. This is the one real trap.
+- **`upgrade()` callbacks move into the worker**, as `upgrades: { 2: fn }`.
+- **`Blob` and `File` throw** rather than being silently mangled — reading their
+  bytes is async and the value codec is not. Pass `.arrayBuffer()`;
+  [Files and binary data](/files-and-binary) covers it.
+- **`Error` objects store as an empty object.** A round trip loses the stack and
+  the prototype. Store a message and a code.
+- **`Table.hook` is client-side**, so a hook cannot veto a write that has already
+  committed.
+
+`Date`, `NaN`, `Infinity`, `BigInt`, typed arrays, `Map`, `Set` and `RegExp` do
+survive, with their constructors intact — a `Float64Array` does not come back a
+`Uint8Array`. The full list, with the data importer that reads your existing
+Dexie database's schema and rows, is on
+[Migrating from Dexie](/migrating-from-dexie).
+
+## When Dexie is still the right answer
+
+Stated plainly, because the honest version of this comparison has to include it.
+
+Dexie sits on IndexedDB, which is built into every browser and costs nothing to
+download. granthdb is SQLite compiled to WebAssembly: a few hundred kilobytes on
+first load, Chrome 108+, Safari 16.4+, Firefox 111+, and a secure context. If
+your dataset is a few thousand rows you read by key, or your app is mostly a
+landing page with some state, Dexie is simpler and the performance difference is
+noise. Built-in and sufficient wins that case.
+
+The switch earns its download when you are filtering on one field and ordering by
+another, when you need `count()`, `sum()` or joins without pulling every matching
+row into JavaScript, or when two tabs writing at once has started producing
+disagreements. Neither database is durable — Safari evicts script-writable
+storage after seven days without site interaction, and roughly 0.1–0.2% of users
+across this whole ecosystem hit corruption anyway — so keep a rebuild-from-server
+path either way. [Storage](/storage) has the details.
+
+## Try it
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Migrating from Dexie](/migrating-from-dexie)** — the codemod, the audit
+  table, and an importer that infers your schema from the existing database
+- **[Security and performance](/security-and-performance)** — measured numbers,
+  and an explicit list of what this does not give you
+- **[Use cases](/use-cases)** — including the ones where this is the wrong tool
+- **[MCP server](/mcp)** — the API surface read off live objects, for coding
+  assistants that would otherwise pattern-match Dexie
+
+Or run a query in [the sandbox](/play/sandbox) before installing anything.
+
+
+---
+
+# IndexedDB vs SQLite WASM: which browser database should you use?
+
+Source: https://granthlabs.github.io/blog/indexeddb-vs-sqlite-wasm
+
+Both store structured data on the user's device. Both work offline. Both survive
+a reload. The difference is what happens when you *ask a question* about the
+data — and the answer decides whether your list view stays fast at 50,000 rows
+or falls over at 5,000.
+
+Short version, before the detail:
+
+- **IndexedDB** is built in, costs nothing to load, and gives you one index per
+  query.
+- **SQLite in WebAssembly** costs a few hundred kilobytes and gives you a query
+  planner, real transactions and SQL.
+
+If you never filter and sort at the same time, IndexedDB is the right answer and
+you can stop reading.
+
+## The comparison
+
+| | IndexedDB | SQLite (WASM + OPFS) |
+|---|---|---|
+| Download cost | **0 — it is built in** | ~400–900 kB of WASM, cacheable |
+| Query engine | one index per query, cursor-walked | a real planner |
+| Filter on A, sort by B | not expressible — sort in JS | one statement |
+| Aggregates | count via cursor iteration | `COUNT`, `SUM`, `AVG`, `MIN`, `MAX` |
+| Joins | none — do it in JS | yes |
+| Transactions | yes, per object store | yes, full ACID |
+| Runs off the main thread | the API is async, the work is not always | yes, in a Worker |
+| Multi-tab writes | last writer wins | one elected writer |
+| Browser support | universal | Chrome 108+, Safari 16.4+, Firefox 111+ |
+| Typical use | key-value, simple lookups | querying a real dataset |
+
+## The one difference that actually decides it
+
+Everything above collapses into a single question: **do you filter on one field
+and order by another?**
+
+IndexedDB reads through a cursor, and a cursor walks exactly one index in that
+index's order. Filtering by `status` means you get results in `status` order.
+There is no second index to apply and no `ORDER BY` separate from the `WHERE`.
+
+So this is not expressible:
+
+```js
+// "open issues, newest first" — pick one: the filter or the order
+store.index('status').openCursor(IDBKeyRange.only('open'));
+```
+
+What you write instead is a fetch-and-sort:
+
+```js
+const all = await db.issues.where('status').equals('open').toArray();
+all.sort((a, b) => b.updated - a.updated);
+const page = all.slice(0, 25);
+```
+
+That is correct, and it is genuinely fine at a few hundred rows. What it does is
+trade a bounded cost for an unbounded one: to display 25 rows it deserialises
+every row that matched, across the structured clone boundary, into JavaScript
+objects. At 1,199 matches you build 1,199 objects and discard 1,174.
+
+The tell is that the cost scales with **how much matched**, not with how much
+you display. A list that is instant on seed data and janky on a real account is
+almost always this.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="An IndexedDB cursor opens one index, walks every matching row into JavaScript and sorts them there to show twenty-five, whereas a SQL planner seeks on one index, orders by a second index and returns only the twenty-five rows needed" style="width:100%;height:auto;color:var(--g-text)">
+  <title>One index per query, versus a query planner</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">IndexedDB cursor</text>
+  <rect x="16" y="30" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">open one index</text>
+  <text x="80" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">status</text>
+  <path d="M152 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="30" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">walk 1,199 rows</text>
+  <text x="267" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">into JS objects</text>
+  <path d="M350 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="30" width="234" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="406" y="47" fill="currentColor" font-size="11.5">sort in JavaScript, keep 25</text>
+  <text x="406" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">1,174 objects discarded</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">SQLite planner</text>
+  <rect x="16" y="122" width="128" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="80" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">seek</text>
+  <text x="80" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">status = open</text>
+  <path d="M152 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="122" width="150" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="267" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">order by updated</text>
+  <text x="267" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">a second index</text>
+  <path d="M350 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="122" width="234" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="406" y="139" fill="currentColor" font-size="11.5">return 25 rows</text>
+  <text x="406" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">off the main thread</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">The difference is how many rows cross into JavaScript.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">One returns everything that matched. The other returns the page you asked for.</text>
+ </svg>
+ <figcaption>A cursor is not a slow planner — it is a different mechanism, with no way to apply a second ordering.</figcaption>
+</figure>
+
+## "Just add a compound index"
+
+A compound index on `[status+updated]` handles that exact query beautifully. It
+is the right fix when you have one such query.
+
+It stops working when filters become optional. Add a label filter, a date range
+and an assignee, and a compound index answers exactly one combination of them.
+With `n` optional filters you cannot enumerate the combinations, and you are
+back to fetching and sorting in JS for every combination you did not anticipate.
+
+Picking the index at query time from the predicates you were actually given is
+the entire job of a query planner. IndexedDB has none, so the picking has to
+happen when you write the schema — before you know what you will need.
+
+## What SQLite WASM actually costs
+
+Being honest about this matters more than the feature table.
+
+**The download.** Several hundred kilobytes of WebAssembly. It caches well, but
+the first visit pays it. Notion measured that loading it *synchronously* made
+their first page slower than the network it replaced, and shipped it fully
+asynchronously with the first page served from the network. Do the same: the
+local database should earn its cost on the second navigation, not the first.
+
+**Async everywhere.** The queries run in a Worker, which is the point, but there
+is no synchronous read. If your current code calls `localStorage.getItem` inside
+a render path, that is a real refactor rather than a swap.
+
+**Browser support is good but not universal.** Chrome 108+, Safari 16.4+,
+Firefox 111+, and a secure context (HTTPS or localhost). Below that you need a
+fallback path — [granthdb degrades to IndexedDB and then to memory](/storage)
+so Safari private browsing gets a working database instead of an exception.
+
+**One writer across tabs.** This is a consequence people miss. OPFS sync access
+handles are exclusive, and two tabs writing one SQLite file is a corrupted file
+rather than a lost update. Any serious implementation elects a single writer —
+[here is how that works and why it is not optional](/blog/web-locks-leader-election).
+
+## The four questions that decide it
+
+1. **Do you filter and sort on different fields?** If no, IndexedDB is fine.
+2. **Does the dataset grow past a few thousand rows?** Below that, fetch-and-sort
+   in JS is genuinely fine and much less machinery.
+3. **Do you need aggregates or joins?** Counting or summing without pulling every
+   row into JavaScript needs a query engine.
+4. **Can you afford the WASM on first load?** If your app is a landing page with
+   a bit of state, no. If it is a workspace people keep open, easily.
+
+Three noes and IndexedDB — or a thin wrapper over it — is the correct answer. It
+is built in, it costs nothing, and "built in and sufficient" beats "powerful" on
+every axis that matters.
+
+## The middle option
+
+You do not have to choose between IndexedDB's API and SQLite's engine.
+
+[granthdb](/getting-started) is SQLite compiled to WebAssembly, stored in OPFS,
+behind the API Dexie already established:
+
+```js
+const grownups = await db.friends
+  .where('age').above(18)
+  .orderBy('name')
+  .toArray();
+```
+
+Filter on one index, order by another, in one statement, in a Worker. If you have
+written Dexie you have already written this — the API is deliberately not the
+interesting part.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Getting started](/getting-started)** — pick your framework and go
+- **[Migrating from Dexie or IndexedDB](/migrating-from-dexie)** — a codemod, and
+  an importer that infers your schema from the existing database
+- **[Storage](/storage)** — OPFS, the fallbacks, quotas and eviction
+- **[Which use case is yours](/use-cases)** — including the ones where this is
+  the wrong tool
+
+Or [write a query in the sandbox](/play/sandbox) without installing anything.
+
+
+---
+
+# The localStorage size limit — and what to use instead
+
+Source: https://granthlabs.github.io/blog/localstorage-limits
+
+The 5 MB is what people search for. It is the least interesting of the three
+limits, and the only one you can fix by storing less.
+
+The one that decides whether you should still be using it is that
+`localStorage` is **synchronous**. Not "slow" — synchronous. Every read happens
+on the main thread, in the middle of whatever frame you were rendering, and
+there is no version of the call that yields.
+
+## Limit one: roughly 5 MB, per origin
+
+Not per key. The quota is shared across every key your origin has ever set, and
+the key names count towards it too. So the blob you are watching is not the only
+thing spending your budget.
+
+Two details that catch people:
+
+- **It is measured against the stored string.** JavaScript strings are UTF-16,
+  so in the browsers that count the quota in bytes, a 5 MB budget buys roughly
+  2.5 million characters rather than 5 million. A document that looks like 4 MB
+  of text can be over.
+- **`QuotaExceededError` throws mid-write.** Each `setItem` is its own
+  operation; there is no transaction spanning two keys. A quota failure on the
+  third of four writes leaves the first two applied and your state
+  half-committed, and you find out synchronously, from inside whatever function
+  was doing the saving.
+
+You can push this out for a while — prune old entries, compress, split across
+keys. All of it is work spent to keep using the wrong store.
+
+## Limit two: strings only
+
+Everything is serialised on the way in and parsed on the way out. That is not
+just overhead, it is lossy: `JSON.stringify` turns a `Date` into a string, drops
+`undefined`, and cannot represent a `Map`, a `Set`, a typed array, `NaN`,
+`Infinity` or a `BigInt` at all. Values come back as something adjacent to what
+you stored, and the bugs surface later, somewhere else.
+[Structured clone versus JSON](/blog/structured-clone-vs-json) covers exactly
+what goes missing.
+
+The other consequence is that reads have no granularity. To learn one field you
+parse the whole blob, because the blob is the unit. Cost scales with the size of
+what you stored, never with the size of what you asked for.
+
+## Limit three: it is synchronous, and you cannot move it
+
+This is the one worth the article.
+
+`localStorage.getItem` returns the value. That contract requires the thread to
+wait — for the read, and then for your `JSON.parse` of the result. There is no
+callback form, no promise form, nothing to `await`. And `localStorage` is not
+exposed inside a Worker at all, so the usual escape hatch of pushing the work
+off-thread is closed by the platform, not by your architecture.
+
+At 5 KB this is invisible and you should not think about it. At 5 MB it is a
+dropped frame, and it lands in the worst possible place: boot. Storage reads
+cluster in the startup path, which is the frame you can least afford to spend.
+
+<figure>
+ <svg viewBox="0 0 640 296" role="img" aria-label="A localStorage read and its JSON parse occupy the main thread as one blocking segment that delays the next render, whereas a granthdb query is posted to a worker so the main thread keeps rendering while SQLite runs the query on another thread." style="width:100%;height:auto;color:var(--g-text)">
+  <title>A blocking read versus a query on another thread</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">localStorage</text>
+  <rect x="110" y="30" width="514" height="44" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="16" y="57" fill="currentColor" fill-opacity="0.6" font-size="11.5" font-family="ui-monospace, monospace">main thread</text>
+  <rect x="118" y="38" width="96" height="28" rx="4" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="166" y="56" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">render</text>
+  <rect x="222" y="38" width="250" height="28" rx="4" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="347" y="56" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">getItem + JSON.parse</text>
+  <rect x="480" y="38" width="136" height="28" rx="4" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="548" y="56" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">render (late)</text>
+  <text x="110" y="92" fill="currentColor" fill-opacity="0.55" font-size="11">One thread, one queue. Nothing else runs, and nothing can be moved.</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">granthdb</text>
+  <rect x="110" y="122" width="514" height="44" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="16" y="149" fill="currentColor" fill-opacity="0.6" font-size="11.5" font-family="ui-monospace, monospace">main thread</text>
+  <rect x="118" y="130" width="96" height="28" rx="4" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="166" y="148" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">render</text>
+  <rect x="222" y="130" width="110" height="28" rx="4" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="277" y="148" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">postMessage</text>
+  <rect x="340" y="130" width="276" height="28" rx="4" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="478" y="148" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">render, animate, respond</text>
+  <path d="M277 168 V182" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M277 186 l-5 -8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <path d="M430 186 V172" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M430 168 l-5 8 h10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="110" y="188" width="514" height="44" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="16" y="215" fill="currentColor" fill-opacity="0.6" font-size="11.5" font-family="ui-monospace, monospace">worker</text>
+  <rect x="222" y="196" width="250" height="28" rx="4" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="347" y="214" fill="currentColor" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">SELECT ... LIMIT 25</text>
+  <text x="16" y="256" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">The size limit is the one you can work around. The blocking is not.</text>
+  <text x="16" y="276" fill="currentColor" fill-opacity="0.55" font-size="11">Storing less makes the read smaller. It never makes it asynchronous.</text>
+ </svg>
+ <figcaption>localStorage is not exposed inside a Worker, so there is no version of the top lane where the work moves somewhere else.</figcaption>
+</figure>
+
+## When localStorage is still the right answer
+
+Often. A theme preference, a dismissed banner, a feature flag — a few keys of a
+few bytes each. The read is too small to show up in a profile, and the API is
+two lines with no build step.
+
+And for one class of value, being synchronous is the *feature*: anything you
+must know before first paint. Reading the theme synchronously in a blocking
+script is how you avoid a flash of the wrong colours. No asynchronous store can
+give you that, because the first paint does not wait for a promise. Keep those
+keys where they are.
+
+Shipping a WASM SQLite build to store one preferences object is worse
+engineering, not better. The [use cases page](/use-cases) says so before it says
+anything else, and [security and performance](/security-and-performance) is
+explicit that for a few hundred key-value reads the difference is noise.
+
+## When it stops being the right answer
+
+Any one of these is enough:
+
+- more than a megabyte or two
+- you store a **list** and filter or sort it in JavaScript
+- you `JSON.parse` the same blob on every page load
+- you have hit `QuotaExceededError`
+- two tabs of your app can disagree about the data
+- storage reads show up in a performance profile
+
+## The multi-tab failure nobody plans for
+
+The usual shape is read–modify–write: parse the blob, change one item,
+stringify, `setItem`. Two tabs doing that concurrently do not lose one field —
+the second write replaces the whole string, so the first tab's entire change
+disappears.
+
+The `storage` event does not save you. It fires in *other* tabs and never in the
+tab that wrote, so it can tell you something changed after the fact but cannot
+serialise your writes. Coordinating writers across tabs needs a lock, which is a
+[separate problem with a real answer](/blog/web-locks-leader-election).
+
+## Migrating: from a blob to rows
+
+The change is mechanical. Before:
+
+```js
+const todos = JSON.parse(localStorage.getItem('todos') ?? '[]');
+const open = todos.filter((t) => !t.done).sort((a, b) => a.created - b.created);
+```
+
+After — declare the shape, move the data once, then stop parsing blobs:
+
+```js
+db.version(1).stores({ todos: '++id, done, created' });
+
+const legacy = JSON.parse(localStorage.getItem('todos') ?? '[]');
+if (legacy.length) {
+  await db.todos.bulkAdd(legacy);
+  localStorage.removeItem('todos');
+}
+
+const open = await db.todos.where('done').equals(false).orderBy('created').toArray();
+```
+
+The second version stops getting slower as the list grows, because it stops
+loading the whole list to read part of it. Full walkthrough on
+[replacing web storage](/replacing-web-storage).
+
+## Auth tokens do not belong in any of these
+
+Worth stating plainly, because "move the token somewhere safer" is a common
+reason people go looking for a localStorage alternative, and it is the wrong
+reason.
+
+A token in a database is not safer than a token in `localStorage`. The threat is
+XSS, and any script running on your origin can call `db.tokens.get()` exactly as
+easily as `localStorage.getItem('token')`. Encrypting it changes nothing — the
+script calls your decrypt path. Moving a token between JS-readable stores is
+motion, not progress.
+
+The actual answer is a cookie JavaScript cannot read:
+
+```
+Set-Cookie: session=…; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=1209600
+```
+
+That is a boundary the browser enforces, not a convention your code maintains.
+If you are on a bearer-token flow, hold the access token in a module-scoped
+variable — gone on reload, never serialised — and pair it with a refresh token
+in an `httpOnly` cookie.
+
+## Picking the replacement
+
+| What you have | Where it belongs |
+|---|---|
+| A few small keys, needed before first paint | Stay on `localStorage` |
+| A bag of key-value pairs you never query | IndexedDB — built in, costs nothing to load |
+| A list you filter, sort, count or paginate | A query engine |
+
+If you land on the third row, the honest costs are: a few hundred kilobytes of
+WebAssembly on first load, a secure context, and Chrome 108+, Safari 16.4+ or
+Firefox 111+. [IndexedDB vs SQLite WASM](/blog/indexeddb-vs-sqlite-wasm) is the
+long version of that decision.
+
+One thing does not improve, whichever row you pick. Browser storage is
+evictable: Safari clears script-writable storage after 7 days without site
+interaction, cleanup tools delete OPFS as "Internet Cache", and roughly 0.1–0.2%
+of users across this ecosystem hit corruption anyway. That was true of your
+localStorage blob too. Call `navigator.storage.persist()`, keep a
+rebuild-from-server path, and treat the local copy as a cache — see
+[Storage](/storage).
+
+## If rows are what you want
+
+[granthdb](/getting-started) is SQLite compiled to WebAssembly, stored in OPFS,
+behind the Dexie API, running in a Worker — so the read that used to block your
+frame is not on your thread at all.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Replacing web storage](/replacing-web-storage)** — the full comparison, and where tokens go
+- **[Storage](/storage)** — OPFS, the IndexedDB and memory fallbacks, quotas and eviction
+- **[Security and performance](/security-and-performance)** — measured numbers, and what this does not give you
+- **[Use cases](/use-cases)** — including the ones where a database is the wrong tool
+
+
+---
+
+# Offline-first vs local-first: which one do you actually need?
+
+Source: https://granthlabs.github.io/blog/offline-first-vs-local-first
+
+The three terms get used interchangeably in job ads, README files and
+architecture docs, and they describe three genuinely different amounts of work —
+somewhere between a week and a year of it.
+
+The whole distinction reduces to one question: **when the local copy and the
+server copy disagree, which one is right?**
+
+- **Cache-first** — the server is right. The local copy exists to avoid a
+  spinner, and you can delete it at any time.
+- **Offline-first** — the server is still right. The local copy accumulates
+  writes while the network is gone and replays them later; the server may reject
+  them.
+- **Local-first** — the local copy is right. There may be no server at all, or
+  only a relay. Two devices that diverge have to be merged, and something has to
+  decide how.
+
+Everything else — OPFS, service workers, WASM, CRDTs — is downstream of that
+answer.
+
+## The three patterns side by side
+
+| | Cache-first | Offline-first | Local-first |
+|---|---|---|---|
+| Who owns the truth | the server | the server | the local copy |
+| Writes while offline | usually blocked | queued, replayed later | just writes, always |
+| When copies disagree | discard the local one | server decides | merge — your problem |
+| What you must build | a read cache | a durable write queue | a sync engine |
+| Deleting local data | safe, refetch | loses queued writes | loses user data |
+| Realistic scope | days | weeks | months, and ongoing |
+
+The last two rows are the ones that decide projects. In a cache-first app,
+`deleteDatabase()` behind a "reset local data" button is a complete recovery
+story. In a local-first app, the same button is data loss, because there is
+nowhere to refetch from.
+
+That matters because browser storage is evictable no matter which pattern you
+pick. Safari clears script-writable storage after 7 days without site
+interaction, cleanup tools delete OPFS as "Internet Cache", and corruption
+shows up in the field at roughly 0.1–0.2% of users from browser crashes alone.
+An architecture where eviction is a refetch is a different animal from one where
+eviction is a support ticket. See [Storage](/storage) for the specifics.
+
+<figure>
+ <svg viewBox="0 0 640 326" role="img" aria-label="A three-row comparison showing that a cache-first app keeps a rebuildable local read model while the server owns the truth, an offline-first app adds a queue of local writes replayed on reconnect while the server still owns the truth, and only a local-first app makes the local copy authoritative and therefore has to merge divergent copies and resolve the conflicts itself" style="width:100%;height:auto;color:var(--g-text)">
+  <title>Where the truth lives in each of the three patterns</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">cache-first</text>
+  <rect x="16" y="30" width="150" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="91" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">local read model</text>
+  <text x="91" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">rebuildable</text>
+  <path d="M174 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M206 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="214" y="30" width="190" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="309" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">refresh from the network</text>
+  <text x="309" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">one direction</text>
+  <path d="M412 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M444 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="452" y="30" width="172" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="538" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">server owns the truth</text>
+  <text x="538" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">nothing to merge</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">offline-first</text>
+  <rect x="16" y="122" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="91" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">local writes queue</text>
+  <text x="91" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">replayed later</text>
+  <path d="M174 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M206 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="214" y="122" width="190" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="309" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">sync when back online</text>
+  <text x="309" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">still one direction</text>
+  <path d="M412 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M444 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="452" y="122" width="172" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="538" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">server still owns truth</text>
+  <text x="538" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">it can reject yours</text>
+  <text x="16" y="204" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">local-first</text>
+  <rect x="16" y="214" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="91" y="231" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">local copy is truth</text>
+  <text x="91" y="246" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">peers, not clients</text>
+  <path d="M174 234 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M206 234 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="214" y="214" width="190" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="309" y="231" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">merge divergent copies</text>
+  <text x="309" y="246" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">CRDTs, vector clocks</text>
+  <path d="M412 234 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M444 234 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="452" y="214" width="172" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="538" y="231" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">conflict resolution</text>
+  <text x="538" y="246" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">you build this</text>
+  <text x="16" y="288" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">Only the bottom row needs a sync engine. granthdb is not one.</text>
+  <text x="16" y="308" fill="currentColor" fill-opacity="0.55" font-size="11">The top two need a local store and a rebuild path — which is the smaller project.</text>
+ </svg>
+ <figcaption>Most products described as local-first sit in the top two rows: the label travelled faster than the architecture did.</figcaption>
+</figure>
+
+## Cache-first: the one most apps mean
+
+You already fetched these records. The user navigates back and you fetch them
+again, with a spinner in between. Cache-first removes the spinner: paint from
+the local copy, refresh from the network behind it, update the view when the
+fresh data lands.
+
+This is what Notion shipped when they moved page data into a WASM build of
+SQLite — roughly a **20% improvement in navigation time**, and more where the
+network is the bottleneck: **28% in Australia, 31% in China, 33% in India**.
+
+It is also the pattern with the most honest failure mode. Their p95 got *worse*
+on slow devices before tuning, because reading from a cheap disk can lose to a
+fast network. The fix was to stop choosing and race the two, taking whichever
+answered first. [Cache-first apps](/cache-first-apps) has the details and the
+snippet.
+
+What you build: a schema, a read path, a background refresh, a "reset local
+data" button. What you do not build: any notion of a write that has not reached
+the server, because there isn't one.
+
+## Offline-first: writes that survive the tunnel
+
+Offline-first adds one thing — the user can *change* data with no network, and
+those changes must not evaporate.
+
+That one addition is where the work is:
+
+- A durable queue of pending operations, ordered, that survives a reload and a
+  crash.
+- Idempotent replay, because you will retry an operation whose response you
+  never saw.
+- A UI that distinguishes "saved" from "saved on this device", so the user is
+  not lied to.
+- A rejection path. The server can refuse a queued write — stale version,
+  deleted record, revoked permission — and something has to tell the user
+  long after they typed it.
+
+The server still owns the truth, which is what keeps this tractable. There is no
+merge algorithm: there is a queue, and a server that accepts or rejects each
+item.
+
+Note the trap in the middle of that list. A queue of pending writes is data with
+no server copy, which means it is the one part of a local cache you cannot
+casually rebuild. If you queue writes, `db.export()` snapshots and a flush before
+unload stop being optional.
+
+## Local-first: the expensive one
+
+Local-first means the local copy is authoritative. Two devices edit while
+partitioned, both are correct, and the system must converge them without asking
+a server to arbitrate — usually with CRDTs, an operational-transform engine, or a
+per-field merge policy you designed yourself and now have to defend at 3am.
+
+It is the right answer for a real class of products — collaborative editors,
+field-work tools with no reliable connection, anything where the user's data
+should outlive your company. It is not a storage decision. It is an application
+architecture, a data model built around merge semantics, and a permanent
+maintenance commitment. If you adopt it, adopt a sync engine built for it rather
+than assembling one.
+
+## How to tell which one you need
+
+1. **Can the user change data while offline?** If no, you want cache-first and
+   the rest of this does not apply.
+2. **If two devices change the same record while both offline, does one of them
+   have to lose?** If the server can just pick, you want offline-first.
+3. **Would the user reasonably expect both edits to survive?** Two people typing
+   in the same paragraph — that is local-first, and only then.
+4. **Would you ship this product if the data existed only on one device?** If the
+   answer is no, you have a server, and if you have a server it can arbitrate.
+
+Most teams answer no to (3) and build for it anyway, because "local-first" is the
+term that circulates. The cost is not the storage layer; it is a merge model
+threaded through every feature you add afterwards.
+
+## Where granthdb sits
+
+granthdb is a **local storage engine, not a sync engine**. It is SQLite compiled
+to WebAssembly, kept in OPFS, behind a Dexie-compatible API, with one elected
+writer so that multiple tabs cannot corrupt the file. That is the whole job.
+
+Concretely, it does not:
+
+- keep a server copy, or know your server exists
+- resolve conflicts between users or between devices
+- queue writes for later replay
+- guarantee your data survives — the browser can evict it, and
+  [Security & performance](/security-and-performance) says so plainly
+
+So it is a good fit for the top two rows of that diagram: the local half of a
+cache-first app, and the durable store underneath an offline-first queue you
+write. For the bottom row it is at most the storage layer beneath a sync engine
+you bring — and bolting sync on is the larger project, larger than the database
+under it.
+
+There are also cases where none of the three justify a WASM download: a tiny
+dataset, data that changes constantly for everyone, or anything needing per-row
+authorisation. [Use cases](/use-cases) lists those before it lists the good
+fits. And if your problem is really "one cursor cannot filter and sort at once",
+that is a query-engine question, not a sync one —
+[IndexedDB vs SQLite WASM](/blog/indexeddb-vs-sqlite-wasm) is the post for it.
+
+## Trying it
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Use cases](/use-cases)** — which pattern you are in, including when this is the wrong tool
+- **[Cache-first apps](/cache-first-apps)** — the Notion pattern, with the p95 regression and the fix
+- **[Storage](/storage)** — OPFS, the IndexedDB and memory fallbacks, eviction and the rebuild path
+- **[Security & performance](/security-and-performance)** — the measured numbers and the hard limits
+
+
+---
+
+# SQLite WASM bundle size: what it costs and when it pays back
+
+Source: https://granthlabs.github.io/blog/sqlite-wasm-bundle-size
+
+The thing people want first is the size: SQLite compiled to WebAssembly is
+**several hundred kilobytes**, varying with the build and with whether your
+server compresses it. That is a real cost, it lands on your first visit, and
+nobody should pretend otherwise.
+
+It is also, on its own, the wrong thing to optimise. Notion shipped exactly this
+and measured it, and their first page got *slower* — not because the bundle was
+too large, but because of where they put it in the loading sequence. Same bytes,
+different position, opposite outcome.
+
+## What actually downloads
+
+Two files, not one:
+
+- **`sqlite3.mjs`** — the JavaScript glue. Module loader, the C API bindings, the
+  object-oriented wrappers, the VFS registrations.
+- **`sqlite3.wasm`** — the compiled engine.
+
+On top of that, whatever wrapper you use. granthdb's client and worker are small
+by comparison and carry [zero runtime dependencies](/security-and-performance) —
+sqlite-wasm is a peer dependency, so you install it yourself and it is the same
+official build either way.
+
+Three properties of those bytes matter more than the total:
+
+**It is compiled, not parsed.** A JavaScript bundle has to be parsed and executed
+on the main thread before it does anything. WebAssembly goes through
+`WebAssembly.compileStreaming`, which compiles as the bytes arrive, and in
+granthdb's case it happens inside a Worker rather than on the thread that paints.
+A kilobyte of WASM and a kilobyte of application JavaScript are not the same
+kilobyte.
+
+**It never changes.** Your application code churns on every deploy. The SQLite
+build changes when you upgrade SQLite — which is a decision you make, not
+something that happens to you. Content-hash it, serve it with a long
+`Cache-Control: immutable`, and the returning visitor downloads nothing. Some
+browsers cache the compiled module as well as the bytes.
+
+**It is only on the critical path if you put it there.** Which is the rest of
+this post.
+
+### One bundler setting to check
+
+If your bundler inlines `.wasm` assets as base64 data URIs — some do this below a
+size threshold, and a few hundred kilobytes is above most thresholds but not all
+— undo it. Base64 is four characters per three bytes, so the asset arrives about
+a third larger, it lands inside your main JavaScript chunk, and it can no longer
+be compiled while streaming because the bytes only exist once that chunk has
+parsed. Serve the `.wasm` as a file with its own URL.
+
+## The mistake, and it is the interesting one
+
+Notion moved page data into a WASM SQLite database backed by OPFS. Their first
+attempt loaded the library synchronously, before the first page rendered. The
+result: **the first page was slower than the network it replaced**. Serving that
+page from local storage saved less time than downloading several hundred
+kilobytes of library in order to serve it.
+
+They shipped it fully asynchronously instead, with the first page coming from the
+network and the WASM loading behind it. That is the whole fix, and it generalises
+into one rule:
+
+> A local database earns its cost on the **second** navigation, not the first.
+
+If your users arrive, do one thing and leave, there is no second navigation and
+the maths never closes. That is not a tuning problem. It is a reason to use
+[IndexedDB or `localStorage`](/blog/indexeddb-vs-sqlite-wasm) instead.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="Loading the WebAssembly build before first paint pushes the first page behind a several-hundred-kilobyte download and makes it slower than the network, whereas loading it asynchronously lets the first page come from the network while the WASM loads behind it and the local database serves the second navigation." style="width:100%;height:auto;color:var(--g-text)">
+  <title>Where the WASM sits in the loading sequence</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">synchronous</text>
+  <rect x="16" y="30" width="176" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="104" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">load the WASM</text>
+  <text x="104" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">sqlite3.wasm + glue</text>
+  <path d="M200 50 h24" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M224 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="232" y="30" width="176" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="320" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">open the database</text>
+  <text x="320" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">compile + OPFS</text>
+  <path d="M416 50 h24" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M440 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="448" y="30" width="176" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="536" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">first paint</text>
+  <text x="536" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">loses to the network</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">asynchronous</text>
+  <rect x="16" y="122" width="176" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="104" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">first paint</text>
+  <text x="104" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">from the network</text>
+  <path d="M200 142 h24" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M224 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="232" y="122" width="176" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="320" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">WASM loads behind it</text>
+  <text x="320" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">in a Worker</text>
+  <path d="M416 142 h24" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M440 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="448" y="122" width="176" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="536" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">2nd navigation</text>
+  <text x="536" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">served locally</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">Identical bytes. The only change is the ordering.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">Notion shipped the top row first and their first page got slower.</text>
+ </svg>
+ <figcaption>Nothing here is a size optimisation — the download is the same either way, and shrinking it would not have saved the top row.</figcaption>
+</figure>
+
+## Lazy initialisation, concretely
+
+Three things can be deferred, and they cost roughly in this order: constructing
+the Worker, fetching and compiling the WASM, and opening the database file.
+
+granthdb defers all three by default, and it is worth knowing *why* so you do not
+accidentally undo it. The `worker` option is a **factory**, not a Worker:
+
+```js
+// db.js — importing this file constructs nothing
+export const db = new Granth('myapp', {
+  worker: () => new Worker(new URL('./db.worker.js', import.meta.url), { type: 'module' }),
+});
+
+db.version(1).stores({ pages: 'id, workspace, updated' });
+```
+
+And there is no `open()` call — **the first query opens the database**. So
+`import { db } from './db'` at the top of your entry file costs one module import
+and nothing else. The Worker spins up, sqlite-wasm downloads and the OPFS file
+opens the first time something actually asks a question.
+
+Which means the deferral is a policy decision rather than a plumbing one. The one
+way to break it is to put a query in a route loader or a top-level `await` that
+gates first paint:
+
+```js
+// Wrong: first paint now waits on several hundred kB of WASM.
+const cached = await db.pages.where('workspace').equals(id).toArray();
+render(cached);
+```
+
+Render from the network first on a cold start, then let the local read take over.
+The [cache-first pattern](/cache-first-apps) has the full shape of it, including
+the `liveQuery` subscription that updates the UI when the background refresh
+lands.
+
+## The cost that is not bytes
+
+Bundle size is the cost everyone measures, and it is not the one that bit Notion
+hardest. Their rollout improved navigation time by roughly **20%** overall, and
+much more where the network is the bottleneck: **28% in Australia, 31% in China,
+33% in India**. On slow devices the **p95 got worse**.
+
+Not the download — the *read*. A low-end phone reading from its own disk can lose
+to a fast network. A local cache is faster on average and it is not faster for
+everybody, and the mean will hide the users you hurt.
+
+Their fix was to stop choosing and race the two, taking whichever answers first:
+
+```js
+const rows = await Promise.any([
+  db.pages.where('workspace').equals(id).toArray().then((r) => r.length ? r : Promise.reject()),
+  fetch(`/api/pages?workspace=${id}`).then((r) => r.json()),
+]);
+```
+
+`Promise.any` rather than `Promise.race`, so an empty or failed local read cannot
+win by returning nothing. The local read usually wins and costs nothing; when the
+disk is slow it loses, and the user gets the network answer instead of waiting
+for the cache to lose slowly.
+
+granthdb deliberately does not do this for you. Racing a database read against
+your own API is an application decision — it needs to know which endpoint,
+which staleness is acceptable, and what an empty result means — so it stays in
+your code, as four lines you can read.
+
+## When the download is simply not worth it
+
+Stated plainly, because the honest cases are the useful ones:
+
+- **A preferences object.** Shipping a WASM SQLite build to store a theme string
+  is worse engineering, not better. `localStorage` is two lines.
+- **A few hundred records, read once.** Below a few thousand rows, fetching and
+  sorting in JavaScript over IndexedDB is genuinely fine and far less machinery.
+- **A landing page.** No second navigation, no payback.
+- **Browsers below the floor.** OPFS needs Chrome 108+, Safari 16.4+, Firefox
+  111+ and a secure context. granthdb degrades to
+  [IndexedDB and then to memory](/storage), but a fallback is a working app, not
+  a fast one.
+
+And whichever side you land on, measure it on a slow device rather than your
+laptop — [benchmarking browser storage](/blog/benchmarking-browser-storage) is
+about the tail, not the median, for exactly this reason.
+
+## If you want to try it
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Getting started](/getting-started)** — the three files, one of which is the worker
+- **[Cache-first apps](/cache-first-apps)** — the Notion pattern, including the p95 caveat
+- **[Security & performance](/security-and-performance)** — measured numbers, and what is explicitly not faster
+- **[Use cases](/use-cases)** — including the ones where this is the wrong tool
+
+
+---
+
+# Structured clone vs JSON.stringify: what survives a write
+
+Source: https://granthlabs.github.io/blog/structured-clone-vs-json
+
+You write an object to a browser store. Later you read it back. The interesting
+question is not whether the write succeeded — it is whether the value you get
+back is the value you put in.
+
+For a row of strings and numbers, always. For a row holding a `Date`, a
+`Uint8Array`, a `Map` or a `NaN`, it depends entirely on how the store
+serialises, and when it goes wrong nothing is raised. You get back something
+that looks approximately right and behaves differently.
+
+## Two serialisation contracts
+
+The browser has two, and they are not close to each other.
+
+**JSON** is a text format with six types: string, number, boolean, null, array,
+object. Anything else has to be squeezed into one of those or dropped.
+`JSON.stringify` does the squeezing on your behalf, quietly.
+
+**The structured clone algorithm** is the platform's own contract for moving a
+value between realms. It is what `postMessage` uses, what `structuredClone()`
+uses, and — the part that matters here — what IndexedDB uses to store a value.
+It knows about roughly twenty types beyond JSON's six, and it preserves cyclic
+references.
+
+If you have been storing values in IndexedDB, directly or through Dexie, you
+have had structured clone fidelity for free and probably never noticed.
+
+## What each one keeps
+
+| Value | `JSON.stringify` | Structured clone | granthdb |
+|---|---|---|---|
+| string, number, boolean, null | kept | kept | kept |
+| `undefined` in an object | **key removed** | kept | kept |
+| `Date` | an ISO string | `Date` | `Date` |
+| `NaN`, `Infinity` | **`null`** | kept | kept |
+| `BigInt` | throws `TypeError` | kept | kept |
+| `Uint8Array`, `Float64Array`, … | `{"0":37,"1":80}` | kept, with its type | kept, with its constructor |
+| `ArrayBuffer`, `DataView` | `{}` | kept | kept |
+| `Map`, `Set` | `{}` | kept | kept, recursively |
+| `RegExp` | `{}` | kept | kept |
+| `Blob`, `File` | `{}` | kept | **throws** — call `.arrayBuffer()` |
+| `Error` | `{}` | kept | stored as `{}`, deliberately |
+| a circular reference | throws `TypeError` | kept | — |
+| functions, DOM nodes, `WeakMap` | dropped, or `{}` | `DataCloneError` | not stored |
+| a class instance | own properties, plain object | own properties, plain object | own properties, plain object |
+
+Two rows deserve to be read twice. `BigInt` and a circular reference are the
+**only** two things in that column that raise anything at all. Every other JSON
+row is a silent downgrade.
+
+## The failure is silent, which is the whole problem
+
+```js
+const row = {
+  bytes: new Uint8Array([37, 80]),
+  when: new Date(),
+  tags: new Set(['draft']),
+  score: NaN,
+  note: undefined,
+};
+
+JSON.parse(JSON.stringify(row));
+// bytes: a plain object with keys '0' and '1'
+// when:  '2026-08-25T09:14:22.108Z'  — a string
+// tags:  an empty object
+// score: null
+// note:  the key is gone
+```
+
+Five values in, five values out, no error, and four of them are now a different
+type. The `Uint8Array` is the worst of them, because it survives in a way that
+fools you: the bytes are all still there, in order, under numeric string keys.
+`row.bytes[0]` is `37` either way. What changed is that
+`row.bytes instanceof Uint8Array` is now false, `.byteLength` is undefined, and
+the representation costs several times the space.
+
+A `Float64Array` degrades the same way. Restore those bytes into the wrong
+typed-array constructor and you have not lost data — you have changed the
+numbers, which is worse, because a wrong number propagates and an exception does
+not.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="A Uint8Array passed through JSON.stringify comes back as a plain object of numeric keys with no error raised, whereas a codec that stores the constructor alongside the bytes returns a real Uint8Array." style="width:100%;height:auto;color:var(--g-text)">
+  <title>JSON.stringify versus a structured-clone codec</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">JSON.stringify</text>
+  <rect x="16" y="30" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">Uint8Array</text>
+  <text x="80" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">[37, 80]</text>
+  <path d="M152 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="30" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">serialise to text</text>
+  <text x="267" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">raises nothing</text>
+  <path d="M350 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="30" width="234" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="406" y="47" fill="currentColor" font-size="11.5">back as a plain object</text>
+  <text x="406" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">&#123;"0":37,"1":80&#125;</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">a type-preserving codec</text>
+  <rect x="16" y="122" width="128" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="80" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">Uint8Array</text>
+  <text x="80" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">[37, 80]</text>
+  <path d="M152 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="122" width="150" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="267" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">store the type too</text>
+  <text x="267" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">not just the bytes</text>
+  <path d="M350 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="122" width="234" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="406" y="139" fill="currentColor" font-size="11.5">back as a Uint8Array</text>
+  <text x="406" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">instanceof still true</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">Neither path raises an error.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">Only one of them gives back the value you stored.</text>
+ </svg>
+ <figcaption>The size increase is the harmless half of this. The type change is the half that reaches production.</figcaption>
+</figure>
+
+## This reaches you even if you never call `JSON.stringify`
+
+Almost every browser store that is not IndexedDB serialises to JSON somewhere,
+usually out of sight:
+
+- `localStorage` and `sessionStorage` hold **strings only**, so something called
+  `JSON.stringify` on your way in — see
+  [Replacing web storage](/replacing-web-storage) and
+  [the limits of localStorage](/blog/localstorage-limits).
+- A wrapper that keeps rows as documents in a SQL `TEXT` column has to encode
+  them somehow, and JSON is the obvious choice.
+- Anything that logs, diffs or caches "the same object" via JSON has quietly
+  changed it.
+
+The hazard has a specific shape at migration time. Code that worked for years on
+IndexedDB — where the platform handled fidelity — moves to a store that
+`JSON.stringify`s into a column, and a `Date` starts arriving as a string. The
+tests pass, because fixtures are usually strings and numbers. See
+[Migrating from Dexie or IndexedDB](/migrating-from-dexie) for the row-by-row
+version, and
+[IndexedDB vs SQLite WASM](/blog/indexeddb-vs-sqlite-wasm) for why you would be
+making that move at all.
+
+## Getting a codec right is three things, not one
+
+The tempting shortcut is one predicate:
+
+```js
+const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+```
+
+That single line destroys `ArrayBuffer`, every typed array, `DataView`, `Blob`,
+`File`, `Map`, `Set`, `RegExp` and `Error`. All of them answer `'object'`. None
+of them keep their data in enumerable own properties, so walking them as plain
+objects finds nothing to copy.
+
+granthdb's codec was written specifically to prevent this class of bug and still
+had the hole, because it enumerated `Date`, `NaN`, `Infinity`, `BigInt` and
+`undefined` and stopped there. **A type-preserving codec is only as complete as
+its type list, and the gap fails in the direction of silence.** The reference
+list is not a matter of taste: for anything claiming IndexedDB compatibility,
+structured clone is the contract, so that is the list to enumerate against.
+
+Closing it properly takes three separate changes, and missing any one leaves it
+broken:
+
+1. **Store the constructor, not just the payload.** A `Float64Array` and a
+   `Uint8Array` over identical bytes are different values.
+2. **Exclude the type from the "plain object" predicate.** Adding a branch to
+   the leaf encoder is not enough — if `isPlain` still claims the value, the
+   walker recurses into it and the leaf branch is never reached. A `Blob` check
+   that raised a clear error did nothing at all until `isPlain` also knew about
+   `Blob`.
+3. **Recurse into containers.** A `Map` whose entries are not themselves encoded
+   fixes the container and leaves the identical bug one level down.
+
+Two traps live inside the encoding itself. A view onto a slice —
+`new Uint8Array(buf, 8, 4)` — must store its own four bytes; encoding `.buffer`
+persists the whole backing buffer, so a `subarray` of a 10 MB buffer writes
+10 MB. And `btoa(String.fromCharCode(...bytes))` spreads every byte as a
+function argument and blows the call stack once the array is large enough: it
+passes every test written against a small fixture and throws on the first real
+file.
+
+## Where granthdb deliberately diverges
+
+Matching structured clone is the goal, not a religion. Two types are handled
+differently on purpose, and both are documented rather than discovered:
+
+**`Blob` and `File` throw.** Their bytes only come out through
+`await blob.arrayBuffer()`, and the codec runs synchronously inside the write
+path, so it cannot await anything. They used to encode to `{}` — the file was
+gone and nothing was raised. Throwing with a message that names the fix replaces
+silent total loss with a failure at the line that caused it. Pass
+`.arrayBuffer()` yourself, where `await` is available. Details in
+[Files and binary data](/files-and-binary).
+
+**`Error` is not restored.** It is structured-cloneable, but a round-tripped
+Error loses its stack and comes back with a different prototype. Handing you
+something that says `Error` and is not one is a half-truth; it stores as `{}`.
+Store a message and a code instead.
+
+One implementation detail worth borrowing: these checks are duck-typed
+(`typeof v.arrayBuffer === 'function'`) rather than `instanceof`. A value that
+has crossed a worker boundary is not always an instance of the receiving realm's
+constructor, and `instanceof` quietly says no.
+
+## What fidelity costs
+
+Bytes are stored base64-encoded inside the row's JSON document, which means
+**+33% size** — 1 MB of bytes occupies 1.33 MB — and the whole document is
+parsed on every read of that row.
+
+That is the right trade for an avatar, a signature, a thumbnail or an icon. It
+is the wrong trade for a PDF, a video or a model file; those belong in OPFS with
+only their metadata in a row. [Files and binary data](/files-and-binary) has the
+pattern, including the part where you delete the file and the row in the right
+order.
+
+## When JSON is the right answer
+
+If your values are strings, numbers, booleans, arrays and plain objects — which
+describes most application data — `JSON.stringify` is correct, faster and
+smaller, and a codec buys you nothing. The question is not "is JSON bad", it is
+"does my data contain a type JSON cannot spell". Run the list above against a
+real row. If nothing on it appears, stop here.
+
+The trouble is that the answer changes without anyone noticing. Someone adds an
+avatar, a signature capture, a `Set` of tags, and the store starts losing them
+on a code path nobody edited.
+
+## granthdb
+
+granthdb is SQLite compiled to WebAssembly, in OPFS, behind the Dexie API — and
+its value codec targets structured clone rather than JSON, so `Date`, `NaN`,
+`Infinity`, `BigInt`, `undefined`, typed arrays, `ArrayBuffer`, `DataView`,
+`Map`, `Set` and `RegExp` come back as themselves.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Files and binary data](/files-and-binary)** — what round-trips, the +33%,
+  and the OPFS sidecar pattern for anything large
+- **[Migrating from Dexie or IndexedDB](/migrating-from-dexie)** — the full
+  fidelity table, the waivers, and the codemod
+- **[Storage](/storage)** — OPFS, the IndexedDB and memory fallbacks, eviction
+- **[Use cases](/use-cases)** — including the cases where this is the wrong tool
+
+
+---
+
+# Electing one writer across browser tabs with Web Locks
+
+Source: https://granthlabs.github.io/blog/web-locks-leader-election
+
+SQLite in a browser tab is one file on disk, and the fastest OPFS VFS —
+`opfs-sahpool`, which needs no COOP/COEP headers — allows exactly **one
+connection** to it. Open your app in three tabs and three agents want the same
+file. Two of them writing it is not a lost update, it is a corrupt database.
+That is what happened to [Notion's first WASM-SQLite rollout](/storage).
+
+So something has to pick one tab. The browser already ships the primitive, and
+it is better than the one you would have written.
+
+## The election you would have written
+
+The obvious design is a heartbeat. Every tab stamps `leader-alive` into
+`localStorage` once a second; a tab that sees a stale stamp claims leadership.
+
+It nearly works, and every part of it is a knob:
+
+- **Pick the staleness threshold.** Too short and a leader doing a three-second
+  bulk import gets deposed while it still holds the file open — two writers,
+  which is the exact outcome you built this to prevent. Too long and every tab
+  stalls for that duration after a crash.
+- **`localStorage` is synchronous and racy.** Two tabs can read the same stale
+  value in the same tick and both claim.
+- **The heartbeat has to keep beating.** That is a timer in every tab, and
+  browsers throttle timers in background tabs — so the mechanism that proves
+  liveness is the one the browser slows down first.
+- **A heartbeat measures liveness by proxy.** A frozen tab is not a dead tab,
+  but it looks identical from the outside.
+
+Every one of those is tuning. Web Locks has none of them, because it does not
+infer liveness at all.
+
+## What Web Locks actually does
+
+`navigator.locks.request(name, callback)` holds a named lock for exactly as long
+as the callback's promise stays pending. Requests for the same name queue in
+order; the next one runs when the holder settles.
+
+The part that matters for election: **the lock is bound to the agent, not to a
+lease.** Close the tab, crash the renderer, force-quit the browser — the lock is
+released, because the browser *is* the lock manager and it already knows the tab
+is gone. There is nothing to renew and no expiry to pick. The failure detector
+is the same code that reaps the tab.
+
+## The pattern
+
+```js
+const LOCK = 'granth/myapp';
+
+// Every tab runs this at startup. For a follower it never returns.
+navigator.locks.request(LOCK, async () => {
+  await openTheDatabase();       // only the holder ever touches the file
+  serveQueriesFromOtherTabs();
+  await new Promise(() => {});   // hold the lock for the life of this tab
+});
+```
+
+Two things are doing quiet work there.
+
+**The never-resolving promise.** A normal `request` callback finishes and
+releases. Leadership is not a critical section with an end — you hold it until
+you die. A promise nobody will settle expresses "until this agent goes away"
+exactly, and costs nothing at runtime: it is not a spin loop, it is a pending
+job the event loop never revisits.
+
+**The queue is the failover.** Followers are not polling to check whether the
+leader is still there. They are already sitting in FIFO order behind it. When
+the holder's tab dies the browser releases the lock and runs the next callback,
+which opens the file and becomes the leader. No election round, no term number,
+no code you wrote, and nothing to test with a fake clock.
+
+If a tab wants to observe who holds the lock without queueing for it, ask:
+
+```js
+const { held } = await navigator.locks.query();
+const leader = held.find((l) => l.name === LOCK);
+```
+
+Followers still need a way to reach the leader with their queries — a
+`BroadcastChannel` to the holding tab's worker, one hop, described in
+[Storage](/storage). Election decides *who*; the channel is *how*.
+
+## The failure that actually matters
+
+Leader election answers who writes. It does not answer what happens to a call
+that was in flight when the writer vanished.
+
+A follower posts "insert this row" and the leader's tab closes a millisecond
+later. The call times out. What do you tell the caller?
+
+There are two genuinely different situations, and they want opposite responses:
+
+- **Nothing ran.** Retry. It cannot double-write.
+- **Something may have run.** Do not retry. You could be inserting twice.
+
+If you cannot tell them apart you must assume the dangerous one for both, and
+then every transient hiccup — a tab closed at the wrong moment, which users do
+constantly — becomes a manual recovery.
+
+The distinction is not free. What creates it is **an acknowledgement sent before
+execution, not after.** The leader receives the message, immediately posts back
+"mine, I have it", and only then compiles and runs the statement.
+
+- No acknowledgement ever arrived → no live leader picked the message up, so
+  nothing crossed into SQLite. In granthdb this is `NoLeaderError`, and it is
+  safe to retry.
+- An acknowledgement arrived and then the tab went silent → it started. Whether
+  the transaction committed before the process died is genuinely unknowable from
+  outside. That is `LeaderLostError`, and granthdb never retries it for you.
+
+SQLite itself is fine either way: the connection dies, the open transaction
+rolls back. The uncertainty is not about the file, it is about which side of the
+commit the tab died on — see [Transaction](/transaction).
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="A call whose leader disappeared before acknowledging it never ran and is safe to retry, whereas a call the leader acknowledged before dying may or may not have committed and must be verified instead of retried." style="width:100%;height:auto;color:var(--g-text)">
+  <title>Two ways a leader can vanish, and why only one is safe to retry</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">vanished before acknowledging</text>
+  <rect x="16" y="30" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">call sent</text>
+  <text x="80" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">deadline attached</text>
+  <path d="M152 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="30" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">no acknowledgement</text>
+  <text x="267" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">never reached SQLite</text>
+  <path d="M350 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="30" width="234" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="406" y="47" fill="currentColor" font-size="11.5">NoLeaderError — retry is safe</text>
+  <text x="406" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">nothing was written</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">vanished after acknowledging</text>
+  <rect x="16" y="122" width="128" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="80" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">call sent</text>
+  <text x="80" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">deadline attached</text>
+  <path d="M152 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M184 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="192" y="122" width="150" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="267" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">acknowledged</text>
+  <text x="267" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">then the tab died</text>
+  <path d="M350 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M382 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="390" y="122" width="234" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="406" y="139" fill="currentColor" font-size="11.5">LeaderLostError — verify first</text>
+  <text x="406" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">commit state unknown</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">The acknowledgement is sent before the query runs, not after.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">Remove it and every timeout collapses into the second, dangerous case.</text>
+ </svg>
+ <figcaption>granthdb retries the first case for you — three attempts with a short backoff — and never retries the second, with open() the single exception.</figcaption>
+</figure>
+
+## The frozen tab is what makes this hard
+
+Here is the wrinkle that turns a tidy rule into real work.
+
+**A frozen tab still holds its lock.** Freezing is not dying, so the browser
+does not release, and nothing re-elects. Meanwhile `postMessage` queues messages
+for it rather than dropping them. So "nobody acknowledged within five seconds"
+does not by itself mean "nothing ran" — it can equally mean "will run later,
+whenever that tab thaws".
+
+The fix is a **deadline carried in every call**. A leader that reads a call
+whose deadline has already passed refuses it instead of running it. Without that
+fence, a thawing tab executes work the caller gave up on and retried, and the
+write lands twice — the precise bug the two error types existed to prevent.
+
+The leader's cutoff is set slightly *earlier* than the caller's, leaving room
+for the acknowledgement to travel, so a call the leader accepted is never
+reported back as un-accepted. Both errors are described in
+[Errors](/errors).
+
+## What Web Locks does not give you
+
+- **It is one origin, one browser profile.** Nothing here coordinates across
+  devices, or even across browsers on the same machine. That is a sync engine,
+  and it is a much larger project — [use cases](/use-cases) says so plainly.
+- **Secure context only.** HTTPS or `localhost`, the same requirement OPFS
+  carries. Below that you need a different topology entirely.
+- **`steal: true` exists and is wrong here.** It is for recovering a wedged
+  holder in a cooperative protocol. Stealing the writer lock is a supported API
+  call whose direct result is two connections to one SQLite file.
+- **One writer is not one transaction.** Election stops two tabs opening the
+  file; it does not stop two tabs interleaving a read-modify-write through the
+  same leader. That still needs [a transaction](/transaction).
+
+The honest summary: Web Locks removes the entire class of bugs that come from
+guessing whether a peer is alive, and removes none of the bugs that come from
+not knowing whether a message was executed. The first is the browser's job. The
+second is yours, and one extra message is what separates a safe retry from a
+dangerous one.
+
+## In granthdb
+
+One elected writer, [`BroadcastChannel`](/storage) routing, and the two typed
+errors are the default behaviour of the worker runtime — there is no
+configuration for it beyond `timeoutMs`.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Storage](/storage)** — the single-writer topology, and how it differs from
+  Notion's SharedWorker version
+- **[Errors](/errors)** — `NoLeaderError`, `LeaderLostError`, and when to retry
+- **[Runtimes](/runtimes)** — why only the worker runtime can hold the file
+- **[IndexedDB vs SQLite WASM](/blog/indexeddb-vs-sqlite-wasm)** — whether you
+  need any of this in the first place
+
+
+---
+
+# What is OPFS? The Origin Private File System, explained
+
+Source: https://granthlabs.github.io/blog/what-is-opfs
+
+The name is the problem. "Origin Private File System" sounds like a way to reach
+the user's files. It is not. OPFS is a private storage area, scoped to your
+origin, that the browser owns and the user never sees. No picker, no permission
+prompt, nothing in Finder or Explorer to open.
+
+What makes it interesting is not the "file system" part. It is one method —
+`createSyncAccessHandle()` — that hands a Worker genuinely synchronous reads and
+writes at byte offsets. That is the exact shape a database engine needs, and it
+is the reason SQLite can run in a browser tab at all.
+
+## What it actually is
+
+One entry point, and it is on `navigator.storage`, not on `window`:
+
+```js
+const root = await navigator.storage.getDirectory();
+const dir  = await root.getDirectoryHandle('db', { create: true });
+const file = await dir.getFileHandle('app.sqlite3', { create: true });
+```
+
+From there you get directories, file handles, and real reads and writes at
+offsets. It behaves like a filesystem because it has the shape of one — which is
+exactly why a database can live there. But every property that matters is a
+storage property, not a filesystem one:
+
+- **Origin-scoped.** Another origin cannot see it or reach it. Yours is yours.
+- **Invisible.** No prompt, no picker, no UI surface. The user cannot browse it.
+- **Quota-bound.** It counts against the same origin quota as IndexedDB, and
+  `navigator.storage.estimate()` reports it.
+- **Browser-managed.** Clearing site data clears it. It is not a place you put
+  something for the user to keep.
+- **Secure context only.** HTTPS or `localhost`, enforced by the platform.
+
+## The confusion: OPFS is not the File System Access API
+
+These get conflated constantly, and there is a good reason: they are the same
+spec and they share the `FileSystemFileHandle` interface. A handle you got from
+`showOpenFilePicker()` and a handle you got from `getDirectoryHandle()` have the
+same methods on them. Only where they came from differs — and that difference is
+everything.
+
+| | OPFS | The pickers |
+|---|---|---|
+| What it reaches | a private area only your origin sees | files the user chose, on their disk |
+| How you get in | `navigator.storage.getDirectory()` | `showOpenFilePicker()` and friends |
+| Needs a user gesture | no | yes — you cannot call one at startup |
+| Chrome / Edge desktop | yes | yes |
+| Safari, Firefox, Android | yes | **no** |
+
+Safari ships OPFS and has never shipped the pickers. So "our web app edits files
+on your machine" is honestly scoped to Chromium on desktop, while "our web app
+stores a database locally" is available almost everywhere. Those are different
+products and they are one table row apart.
+[Files and binary data](/files-and-binary) has the full matrix and the
+feature-detect.
+
+## Two ways to write to an OPFS file
+
+Given a file handle, there are two ways to put bytes in it, and they are not
+variations on a theme.
+
+`createWritable()` gives you a `FileSystemWritableFileStream`. It is
+asynchronous, it works on the main thread and in a Worker, and it writes to a
+temporary copy that is only swapped in when the stream closes cleanly — so an
+interrupted write leaves the old file intact rather than a half-written one.
+It streams, so `file.stream().pipeTo(w)` never materialises a large file in
+memory.
+For an avatar, a PDF, a video, an imported archive, this is the right call.
+
+`createSyncAccessHandle()` gives you something else entirely: `read()`,
+`write()`, `truncate()`, `getSize()` and `flush()` that return values rather than
+promises, operating at a byte offset you specify. It is available only inside a
+dedicated Worker, and it takes an exclusive lock on the file — a second one fails
+while the first is open.
+
+<figure>
+ <svg viewBox="0 0 640 232" role="img" aria-label="Two ways to open the same OPFS file: createWritable works anywhere but is an asynchronous write-only stream that swaps a copy in on close, so it cannot back a database file, whereas createSyncAccessHandle is available only inside a dedicated Worker, takes an exclusive lock, and gives the synchronous reads and writes at byte offsets that a SQLite VFS requires." style="width:100%;height:auto;color:var(--g-text)">
+  <title>Two handle types on one OPFS file</title>
+  <text x="16" y="20" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">createWritable() — anywhere</text>
+  <rect x="16" y="30" width="118" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="75" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">main thread</text>
+  <text x="75" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">or a Worker</text>
+  <path d="M142 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M174 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="182" y="30" width="196" height="40" rx="5" fill="currentColor" fill-opacity="0.06" stroke="currentColor" stroke-opacity="0.3" />
+  <text x="280" y="47" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle" font-family="ui-monospace, monospace">createWritable()</text>
+  <text x="280" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle">swaps a copy in on close</text>
+  <path d="M386 50 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M418 50 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="426" y="30" width="198" height="40" rx="5" fill="#ef4444" fill-opacity="0.14" stroke="#ef4444" stroke-opacity="0.5" />
+  <text x="442" y="47" fill="currentColor" font-size="11.5">async, and write-only</text>
+  <text x="442" y="62" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">reads go via getFile()</text>
+  <text x="16" y="112" fill="currentColor" fill-opacity="0.7" font-size="11.5" font-family="ui-monospace, monospace">createSyncAccessHandle() — Worker only</text>
+  <rect x="16" y="122" width="118" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="75" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle">dedicated Worker</text>
+  <text x="75" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle" font-family="ui-monospace, monospace">not the window</text>
+  <path d="M142 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M174 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="182" y="122" width="196" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="280" y="139" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle" font-family="ui-monospace, monospace">createSyncAccessHandle()</text>
+  <text x="280" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" text-anchor="middle">exclusive: one per file</text>
+  <path d="M386 142 h32" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" />
+  <path d="M418 142 l-8 -5 v10 z" fill="currentColor" fill-opacity="0.4" />
+  <rect x="426" y="122" width="198" height="40" rx="5" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-opacity="0.55" />
+  <text x="442" y="139" fill="currentColor" font-size="11.5">sync read at an offset</text>
+  <text x="442" y="154" fill="currentColor" fill-opacity="0.6" font-size="10.5" font-family="ui-monospace, monospace">what a VFS needs</text>
+  <text x="16" y="196" fill="currentColor" fill-opacity="0.75" font-size="11.5" font-weight="600">Same file, same origin — the handle decides what can live in it.</text>
+  <text x="16" y="216" fill="currentColor" fill-opacity="0.55" font-size="11">Only a dedicated Worker gets the synchronous one, and only one holder at a time.</text>
+ </svg>
+ <figcaption>The database ends up in a Worker because of a method signature, not because someone preferred it there.</figcaption>
+</figure>
+
+## Why the synchronous one is what unlocked SQLite
+
+SQLite is C, and its storage layer is a VFS: a struct of callbacks named
+`xRead`, `xWrite`, `xTruncate`, `xSync`, `xFileSize`. They are synchronous. A
+synchronous C function cannot await a promise, and compiling it to WebAssembly
+does not change that.
+
+So before sync access handles, the options were both compromises. Keep the whole
+database in WASM linear memory and lose it on reload. Or suspend the WASM stack —
+Asyncify, and later JSPI — so C can wait on a JavaScript promise, which works but
+costs size and complexity for every call that touches the file.
+
+`createSyncAccessHandle()` removes the mismatch instead of papering over it. The
+handle's `read` and `write` really are synchronous, at an offset, on a real file,
+so the VFS is a thin shim rather than a stack-suspension machine. That is the
+whole trick: not a performance optimisation, an impedance match.
+
+It is also why a browser-side SQLite is a recent thing rather than an obvious old
+one, and why "why not just use IndexedDB" has a different answer now than it did
+in 2020 — see [IndexedDB vs SQLite WASM](/blog/indexeddb-vs-sqlite-wasm).
+
+## Worker-only is a design constraint, not a footnote
+
+Sync access handles are dedicated-worker-only. Not the window. That means an
+OPFS-backed database cannot be a drop-in for something you call inline during a
+render — the database lives in a Worker and you talk to it over `postMessage`.
+
+Two consequences worth taking seriously:
+
+- **Every read is async from your code's point of view**, even though the file
+  I/O underneath is synchronous. If you currently call `localStorage.getItem` in
+  a render path, that is a refactor, not a swap.
+- **SQL is off the main thread by construction.** A slow scan cannot stutter an
+  animation, because it is not on your thread. granthdb makes this explicit
+  rather than silently degrading: a worker runtime that cannot build a worker
+  raises an error instead of quietly moving SQL onto your main thread. See
+  [Runtimes](/runtimes).
+
+## Exclusive is the other half, and it costs you a design
+
+The lock is per file and it is exclusive. One tab holds the handle; another tab
+asking for the same file does not get a second connection, it gets a failure.
+
+`opfs-sahpool` — the OPFS VFS that needs no COOP/COEP headers — allows exactly
+one connection for exactly this reason. So multi-tab is not a feature you add
+later; it is a topology you choose up front. The working
+answer is to elect one tab via Web Locks, let its Worker be the only thing that
+opens the file, and route every other tab's queries to it.
+
+This is not theoretical tidiness. Two tabs writing one OPFS file is what
+corrupted Notion's first WASM-SQLite rollout — the fix is election, not a
+mitigation. [How the election works, and why it is not optional](/blog/web-locks-leader-election).
+
+## Where OPFS is not
+
+An OPFS-only design has holes in it, and they are not edge cases:
+
+- **Safari private browsing has no OPFS at all.** A hard failure, not a slow
+  path.
+- **Chrome incognito gives an OPFS database far less room**, with surprising
+  errors at the limit.
+- **iOS Capacitor apps lose access handles when backgrounded.**
+- **Version support.** Running SQLite on OPFS wants Chrome 108+, Safari 16.4+,
+  Firefox 111+ and a secure context. Safari shipped bare OPFS earlier than that,
+  but not the parts that make a database work.
+
+Which is why treating storage as a single mode is the wrong shape. granthdb takes
+an ordered list and falls through OPFS → IndexedDB → memory, so a private window
+gets a working database rather than an exception —
+[the fallback chain is on the Storage page](/storage).
+
+## "Private" does not mean any of the things you want it to
+
+Three claims the name invites, all of them false:
+
+**It is not durable.** Safari evicts all script-writable storage after 7 days
+without site interaction; home-screen PWAs and `navigator.storage.persist()` are
+exempt. Cleanup tools delete OPFS as "Internet Cache", and Windows low-disk
+cleanup clears it. Field data across this whole ecosystem shows roughly 0.1–0.2%
+of users hitting corruption anyway. Always keep a rebuild-from-server path, and
+exercise it.
+
+**It is not encrypted.** The bytes sit on disk in plaintext. Anyone with the
+device profile can read them. If you cache someone's notes, messages or client
+records, encrypt the values before they are written.
+
+**It is not private from your own page.** "Origin private" means private from
+*other origins*. Script running on your origin has exactly the access your app
+has, so XSS reads everything, and no browser-side encryption changes that because
+the key must be usable by your code.
+[Security and performance](/security-and-performance) states the limits with the
+measured numbers beside them.
+
+## If you want SQLite on OPFS without writing the VFS
+
+[granthdb](/getting-started) is the official sqlite.org WASM build on
+`opfs-sahpool`, in a Worker, with one tab elected via Web Locks, behind the API
+Dexie already established — and it degrades to IndexedDB and then to memory where
+OPFS is missing.
+
+```
+npm install granthdb @sqlite.org/sqlite-wasm
+```
+
+- **[Storage](/storage)** — the fallback chain, quotas, eviction and multi-tab
+- **[Runtimes](/runtimes)** — why the worker runtime is the only one that gets OPFS
+- **[Files and binary data](/files-and-binary)** — the pattern for keeping large
+  bytes in OPFS beside the database rather than inside it
+- **[Security and performance](/security-and-performance)** — what this does not
+  give you, stated first

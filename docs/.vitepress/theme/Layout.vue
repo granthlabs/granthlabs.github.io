@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import DefaultTheme from 'vitepress/theme';
 import { withBase } from 'vitepress';
 import Footer from './Footer.vue';
+import PostMeta from './PostMeta.vue';
+import PostNav from './PostNav.vue';
 
 const { Layout } = DefaultTheme;
 
@@ -481,6 +483,16 @@ async function copy() {
           </div>
         </div>
       </section>
+    </template>
+
+    <!-- Blog chrome. Both components decide for themselves whether the current
+         page is a post, so these slots are inert on every docs page. -->
+    <template #doc-before>
+      <PostMeta />
+    </template>
+
+    <template #doc-after>
+      <PostNav />
     </template>
 
     <template #layout-bottom>
